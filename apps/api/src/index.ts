@@ -14,6 +14,8 @@ import { supplierRouter } from "./routes/suppliers";
 import { orderRouter } from "./routes/orders";
 import { aiRouter } from "./routes/ai";
 import { adminRouter } from "./routes/admin";
+import { restaurantRouter } from "./routes/restaurants";
+import { reviewRouter } from "./routes/reviews";
 import { errorHandler } from "./middleware/error-handler";
 import { initCronJobs } from "./jobs/daily-cycle";
 
@@ -42,6 +44,8 @@ app.use("/api/suppliers", supplierRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/restaurants", restaurantRouter);
+app.use("/api/reviews", reviewRouter);
 
 // Error handling
 app.use(errorHandler);

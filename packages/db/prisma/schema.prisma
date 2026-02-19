@@ -34,6 +34,7 @@ model User {
   restaurant      Restaurant?
   supplier        Supplier?
   zoneMemberships ZoneMembership[]
+  reviews         Review[]
 
   @@map("users")
 }
@@ -198,14 +199,30 @@ model Restaurant {
   isVerified  Boolean @default(false)
   zoneId      String
 
+  // Enrollment fields
+  businessLicenseNumber  String?
+  taxId                  String?
+  phone                  String?
+  email                  String?
+  city                   String?
+  state                  String?
+  zipCode                String?
+  cuisineTypes           Json?     @default("[]")
+  kitchenCapacity        Int?
+  healthPermitNumber     String?
+  insurancePolicyNumber  String?
+  yearsInOperation       Int?
+  website                String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  owner  User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  zone   Zone   @relation(fields: [zoneId], references: [id])
-  bids   Bid[]
-  orders Order[]
+  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  zone    Zone     @relation(fields: [zoneId], references: [id])
+  bids    Bid[]
+  orders  Order[]
+  reviews Review[]
 
   @@map("restaurants")
 }
@@ -364,6 +381,7 @@ model Order {
   dailyCycle DailyCycle  @relation(fields: [dailyCycleId], references: [id])
   restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
   items      OrderItem[]
+  review     Review?
 
   @@map("orders")
 }
@@ -380,4 +398,28 @@ model OrderItem {
   dish  Dish  @relation(fields: [dishId], references: [id])
 
   @@map("order_items")
+}
+
+// ============================================
+// Reviews
+// ============================================
+
+model Review {
+  id           String   @id @default(uuid())
+  userId       String
+  restaurantId String
+  orderId      String?  @unique
+  rating       Int
+  title        String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order      Order?     @relation(fields: [orderId], references: [id])
+
+  @@unique([userId, orderId])
+  @@map("reviews")
 }

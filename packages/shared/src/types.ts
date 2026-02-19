@@ -149,6 +149,19 @@ export interface Restaurant {
   imageUrl?: string;
   isVerified: boolean;
   zoneId: string;
+  businessLicenseNumber?: string;
+  taxId?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  cuisineTypes?: string[];
+  kitchenCapacity?: number;
+  healthPermitNumber?: string;
+  insurancePolicyNumber?: string;
+  yearsInOperation?: number;
+  website?: string;
 }
 
 // --- Bid ---
@@ -234,6 +247,21 @@ export interface OrderItem {
   dishId: string;
   quantity: number;
   price: number;
+}
+
+// --- Review ---
+
+export interface Review {
+  id: string;
+  userId: string;
+  restaurantId: string;
+  orderId?: string;
+  rating: number;
+  title: string;
+  body: string;
+  createdAt: Date;
+  user?: { name: string; avatarUrl?: string };
+  restaurant?: { name: string };
 }
 
 // --- AI Types ---
