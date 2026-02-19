@@ -1,43 +1,10 @@
 import Link from "next/link";
+import { Header } from "@/components/header";
 
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary" />
-            <span className="text-xl font-bold">Dotted</span>
-          </div>
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/vote"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              Today&apos;s Vote
-            </Link>
-            <Link
-              href="/cycle"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              Daily Cycle
-            </Link>
-            <Link
-              href="/reviews"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              Reviews
-            </Link>
-            <Link
-              href="/api/auth/signin"
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Sign In
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero */}
       <main className="flex-1">

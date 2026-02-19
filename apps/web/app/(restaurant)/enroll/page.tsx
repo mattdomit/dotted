@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Header } from "@/components/header";
+import { ZonePicker } from "@/components/zone-picker";
+import { apiFetch } from "@/lib/api";
 
 const CUISINE_OPTIONS = [
   "American",
@@ -96,25 +99,14 @@ export default function EnrollPage() {
         description: formData.description || undefined,
       };
 
-      const res = await fetch("http://localhost:4000/api/restaurants/enroll", {
+      await apiFetch("/restaurants/enroll", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Enrollment failed. Please check your details.");
-        setSubmitting(false);
-        return;
-      }
-
       router.push("/bids");
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Enrollment failed. Please check your details.");
       setSubmitting(false);
     }
   }
@@ -124,6 +116,8 @@ export default function EnrollPage() {
   const labelClass = "mb-1 block text-sm font-medium";
 
   return (
+    <div className="min-h-screen">
+      <Header />
     <div className="container max-w-3xl py-8">
       <h1 className="mb-2 text-3xl font-bold">Restaurant Enrollment</h1>
       <p className="mb-8 text-muted-foreground">
@@ -458,19 +452,15 @@ export default function EnrollPage() {
         {/* Zone Selection */}
         <div>
           <label htmlFor="zoneId" className={labelClass}>
-            Zone ID
+            Zone
           </label>
-          <input
-            id="zoneId"
-            name="zoneId"
-            required
+          <ZonePicker
             value={formData.zoneId}
-            onChange={handleChange}
+            onChange={(id) => setFormData((prev) => ({ ...prev, zoneId: id }))}
             className={inputClass}
-            placeholder="Zone UUID"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            Enter the UUID of the zone your restaurant operates in.
+            Select the zone your restaurant operates in.
           </p>
         </div>
 
@@ -482,6 +472,7 @@ export default function EnrollPage() {
           {submitting ? "Enrolling..." : "Complete Enrollment"}
         </button>
       </form>
+    </div>
     </div>
   );
 }

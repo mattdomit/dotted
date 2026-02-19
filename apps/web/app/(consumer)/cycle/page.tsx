@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Header } from "@/components/header";
+import { ZonePicker } from "@/components/zone-picker";
+import { apiFetch } from "@/lib/api";
 
 interface CycleStatus {
   id: string;
@@ -92,35 +95,27 @@ export default function CyclePage() {
     setLoading(true);
     setError("");
     try {
-      // Fetch status
-      const statusRes = await fetch(
-        `http://localhost:4000/api/cycles/today/status?zoneId=${zid}`
+      const statusData = await apiFetch<{ data: CycleStatus }>(
+        `/cycles/today/status?zoneId=${zid}`
       );
-      if (!statusRes.ok) {
-        if (statusRes.status === 404) {
-          setError("No cycle found for today in this zone.");
-          setCycleStatus(null);
-          setCycleDetail(null);
-          setLoading(false);
-          return;
-        }
-        throw new Error("Failed to load cycle");
-      }
-      const statusData = await statusRes.json();
       setCycleStatus(statusData.data);
 
-      // Fetch full details
-      const detailRes = await fetch(
-        `http://localhost:4000/api/cycles/${statusData.data.id}`
-      );
-      if (detailRes.ok) {
-        const detailData = await detailRes.json();
+      try {
+        const detailData = await apiFetch<{ data: CycleDetail }>(
+          `/cycles/${statusData.data.id}`
+        );
         setCycleDetail(detailData.data);
-      }
+      } catch {}
 
       setZoneId(zid);
-    } catch {
-      setError("Could not load cycle data.");
+    } catch (err: any) {
+      if (err.message.includes("404") || err.message.includes("No cycle")) {
+        setError("No cycle found for today in this zone.");
+      } else {
+        setError("Could not load cycle data.");
+      }
+      setCycleStatus(null);
+      setCycleDetail(null);
     } finally {
       setLoading(false);
     }
@@ -145,7 +140,9 @@ export default function CyclePage() {
   const currentPhaseIndex = PHASES_ORDER.indexOf(currentPhase);
 
   return (
-    <div className="container max-w-3xl py-8">
+    <div className="min-h-screen">
+      <Header />
+      <div className="container max-w-3xl py-8">
       <h1 className="mb-2 text-3xl font-bold">Daily Cycle Dashboard</h1>
       <p className="mb-8 text-muted-foreground">
         Track today&apos;s dish-of-the-day cycle in real time.
@@ -153,12 +150,13 @@ export default function CyclePage() {
 
       {/* Zone Search */}
       <form onSubmit={handleSearch} className="mb-8 flex gap-2">
-        <input
-          value={zoneInput}
-          onChange={(e) => setZoneInput(e.target.value)}
-          className="flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder="Enter Zone ID to track..."
-        />
+        <div className="flex-1">
+          <ZonePicker
+            value={zoneInput}
+            onChange={(id) => setZoneInput(id)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          />
+        </div>
         <button
           type="submit"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -331,6 +329,7 @@ export default function CyclePage() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
