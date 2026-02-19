@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Users & Auth
+// ============================================
+
+enum UserRole {
+  CONSUMER
+  RESTAURANT_OWNER
+  SUPPLIER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  role         UserRole @default(CONSUMER)
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  votes           Vote[]
+  orders          Order[]
+  restaurant      Restaurant?
+  supplier        Supplier?
+  zoneMemberships ZoneMembership[]
+
+  @@map("users")
+}
+
+// ============================================
+// Geography
+// ============================================
+
+model Zone {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  city             String
+  state            String
+  // PostGIS boundary stored as GeoJSON string (use raw SQL for spatial queries)
+  boundaryGeoJson  String?  @db.Text
+  isActive         Boolean  @default(true)
+  dailyCycleConfig Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  memberships  ZoneMembership[]
+  dailyCycles  DailyCycle[]
+  restaurants  Restaurant[]
+  suppliers    Supplier[]
+
+  @@map("zones")
+}
+
+model ZoneMembership {
+  id       String   @id @default(uuid())
+  userId   String
+  zoneId   String
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, zoneId])
+  @@map("zone_memberships")
+}
+
+// ============================================
+// Daily Cycle
+// ============================================
+
+enum CycleStatus {
+  SUGGESTING
+  VOTING
+  BIDDING
+  SOURCING
+  ORDERING
+  COMPLETED
+  CANCELLED
+}
+
+model DailyCycle {
+  id            String      @id @default(uuid())
+  zoneId        String
+  date          DateTime    @db.Date
+  status        CycleStatus @default(SUGGESTING)
+  winningDishId String?
+  winningBidId  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  zone           Zone            @relation(fields: [zoneId], references: [id])
+  dishes         Dish[]
+  votes          Vote[]
+  bids           Bid[]
+  purchaseOrders PurchaseOrder[]
+  orders         Order[]
+
+  @@unique([zoneId, date])
+  @@map("daily_cycles")
+}
+
+// ============================================
+// Dishes
+// ============================================
+
+model Dish {
+  id            String   @id @default(uuid())
+  dailyCycleId  String
+  name          String
+  description   String   @db.Text
+  cuisine       String
+  imageUrl      String?
+  recipeSpec    Json     @default("{}")
+  estimatedCost Float
+  voteCount     Int      @default(0)
+  aiPromptUsed  String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  // Relations
+  dailyCycle  DailyCycle   @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+  ingredients Ingredient[]
+  votes       Vote[]
+  bids        Bid[]
+  orderItems  OrderItem[]
+
+  @@map("dishes")
+}
+
+// ============================================
+// Ingredients
+// ============================================
+
+model Ingredient {
+  id                  String  @id @default(uuid())
+  dishId              String
+  name                String
+  quantity            Float
+  unit                String
+  category            String
+  preferredSupplierId String?
+  substitutes         Json    @default("[]")
+
+  // Relations
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@map("ingredients")
+}
+
+// ============================================
+// Voting
+// ============================================
+
+model Vote {
+  id           String   @id @default(uuid())
+  userId       String
+  dishId       String
+  dailyCycleId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  dailyCycle DailyCycle @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dailyCycleId])
+  @@map("votes")
+}
+
+// ============================================
+// Restaurants & Bidding
+// ============================================
+
+model Restaurant {
+  id          String  @id @default(uuid())
+  ownerId     String  @unique
+  name        String
+  address     String
+  latitude    Float?
+  longitude   Float?
+  rating      Float   @default(0)
+  capacity    Int
+  description String? @db.Text
+  imageUrl    String?
+  isVerified  Boolean @default(false)
+  zoneId      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  owner  User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  zone   Zone   @relation(fields: [zoneId], references: [id])
+  bids   Bid[]
+  orders Order[]
+
+  @@map("restaurants")
+}
+
+enum BidStatus {
+  PENDING
+  WON
+  LOST
+}
+
+model Bid {
+  id                 String    @id @default(uuid())
+  restaurantId       String
+  dailyCycleId       String
+  dishId             String
+  pricePerPlate      Float
+  prepTime           Int
+  maxCapacity        Int
+  serviceFeeAccepted Boolean   @default(true)
+  score              Float?
+  status             BidStatus @default(PENDING)
+  createdAt          DateTime  @default(now())
+
+  // Relations
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dailyCycle DailyCycle @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+  dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, dailyCycleId])
+  @@map("bids")
+}
+
+// ============================================
+// Suppliers & Inventory
+// ============================================
+
+model Supplier {
+  id             String  @id @default(uuid())
+  ownerId        String  @unique
+  businessName   String
+  address        String
+  latitude       Float?
+  longitude      Float?
+  certifications Json    @default("[]")
+  rating         Float   @default(0)
+  isVerified     Boolean @default(false)
+  zoneId         String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  owner          User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  zone           Zone                @relation(fields: [zoneId], references: [id])
+  inventory      SupplierInventory[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model SupplierInventory {
+  id                String    @id @default(uuid())
+  supplierId        String
+  ingredientName    String
+  category          String
+  unit              String
+  pricePerUnit      Float
+  quantityAvailable Float
+  harvestDate       DateTime?
+  isOrganic         Boolean   @default(false)
+  expiresAt         DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@map("supplier_inventory")
+}
+
+// ============================================
+// Purchase Orders
+// ============================================
+
+enum PurchaseOrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  dailyCycleId String
+  supplierId   String
+  status       PurchaseOrderStatus @default(PENDING)
+  totalCost    Float
+  deliveryEta  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  // Relations
+  dailyCycle DailyCycle          @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+  supplier   Supplier            @relation(fields: [supplierId], references: [id])
+  items      PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(uuid())
+  purchaseOrderId String
+  inventoryItemId String
+  quantity        Float
+  unitPrice       Float
+
+  // Relations
+  purchaseOrder PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem SupplierInventory @relation(fields: [inventoryItemId], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+// ============================================
+// Consumer Orders
+// ============================================
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  READY
+  PICKED_UP
+  DELIVERED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+model Order {
+  id              String          @id @default(uuid())
+  userId          String
+  dailyCycleId    String
+  restaurantId    String
+  quantity        Int
+  totalPrice      Float
+  status          OrderStatus     @default(PENDING)
+  fulfillmentType FulfillmentType @default(PICKUP)
+  stripePaymentId String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCycle DailyCycle  @relation(fields: [dailyCycleId], references: [id])
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
+  items      OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id       String @id @default(uuid())
+  orderId  String
+  dishId   String
+  quantity Int
+  price    Float
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish  Dish  @relation(fields: [dishId], references: [id])
+
+  @@map("order_items")
+}
