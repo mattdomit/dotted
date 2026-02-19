@@ -10,6 +10,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/services/**", "src/ai/**", "src/middleware/**", "src/routes/**", "src/jobs/**"],
+      reporter: ["text", "json-summary", "html"],
     },
   },
 });

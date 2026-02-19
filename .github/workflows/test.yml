@@ -52,9 +52,30 @@ jobs:
         run: npx prisma db push --skip-generate --accept-data-loss
         working-directory: packages/db
 
-      - name: Run tests
-        run: pnpm --filter @dotted/api test
-
       - name: Run tests with coverage
         run: pnpm --filter @dotted/api test:coverage
-        if: github.event_name == 'pull_request'
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: apps/api/coverage/
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f apps/api/coverage/coverage-summary.json ]; then
+            echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            node -e "
+              const c = require('./apps/api/coverage/coverage-summary.json').total;
+              const fmt = (m) => m.pct + '%';
+              console.log('| Metric | Coverage |');
+              console.log('|--------|----------|');
+              console.log('| Statements | ' + fmt(c.statements) + ' |');
+              console.log('| Branches | ' + fmt(c.branches) + ' |');
+              console.log('| Functions | ' + fmt(c.functions) + ' |');
+              console.log('| Lines | ' + fmt(c.lines) + ' |');
+            " >> $GITHUB_STEP_SUMMARY
+          fi
