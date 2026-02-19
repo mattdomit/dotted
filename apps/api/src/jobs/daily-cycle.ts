@@ -74,7 +74,7 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
   });
 }
 
-async function runDailyCycleForAllZones(targetStatus: CycleStatus) {
+export async function runDailyCycleForAllZones(targetStatus: CycleStatus) {
   const zones = await prisma.zone.findMany({ where: { isActive: true } });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
