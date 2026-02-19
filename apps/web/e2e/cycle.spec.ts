@@ -63,7 +63,7 @@ test.describe("Cycle Page", () => {
         body: JSON.stringify(MOCK_STATUS),
       })
     );
-    await page.route("**/api/cycles/cycle-100", (route) =>
+    await page.route(/\/api\/cycles\/cycle-100$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -74,8 +74,8 @@ test.describe("Cycle Page", () => {
     await page.getByPlaceholder("Enter Zone ID").fill("demo-zone");
     await page.getByRole("button", { name: "Track Cycle" }).click();
 
-    // Phase card
-    await expect(page.getByText("Community Voting")).toBeVisible();
+    // Phase card — use exact: true to avoid matching the timeline entry "Community voting"
+    await expect(page.getByText("Community Voting", { exact: true })).toBeVisible();
 
     // Stats grid
     await expect(page.getByText("Dishes").first()).toBeVisible();
@@ -98,7 +98,7 @@ test.describe("Cycle Page", () => {
         body: JSON.stringify(MOCK_STATUS),
       })
     );
-    await page.route("**/api/cycles/cycle-100", (route) =>
+    await page.route(/\/api\/cycles\/cycle-100$/, (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -110,10 +110,10 @@ test.describe("Cycle Page", () => {
     await page.getByRole("button", { name: "Track Cycle" }).click();
 
     await expect(page.getByText("AI generates dishes")).toBeVisible();
-    await expect(page.getByText("Community voting")).toBeVisible();
-    await expect(page.getByText("Restaurant bidding")).toBeVisible();
-    await expect(page.getByText("Ingredient sourcing")).toBeVisible();
-    await expect(page.getByText("Orders open")).toBeVisible();
-    await expect(page.getByText("Cycle complete")).toBeVisible();
+    await expect(page.getByText("Community voting", { exact: true })).toBeVisible();
+    await expect(page.getByText("Restaurant bidding", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ingredient sourcing", { exact: true })).toBeVisible();
+    await expect(page.getByText("Orders open", { exact: true })).toBeVisible();
+    await expect(page.getByText("Cycle complete", { exact: true })).toBeVisible();
   });
 });

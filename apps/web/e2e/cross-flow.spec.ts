@@ -3,19 +3,20 @@ import { test, expect } from "@playwright/test";
 test.describe("Cross-Flow Navigation", () => {
   test("consumer journey: home -> vote -> cycle -> reviews", async ({ page }) => {
     await page.goto("/");
+    const nav = page.locator("nav");
 
     // Home -> Vote
-    await page.getByRole("link", { name: "Vote Today" }).click();
+    await nav.getByRole("link", { name: "Today's Vote" }).click();
     await expect(page).toHaveURL("/vote");
 
-    // Vote -> Cycle (go back to home first, then navigate)
+    // Vote -> home -> Cycle
     await page.goto("/");
-    await page.getByRole("link", { name: "Daily Cycle" }).click();
+    await nav.getByRole("link", { name: "Daily Cycle" }).click();
     await expect(page).toHaveURL("/cycle");
 
-    // Cycle -> Reviews
+    // Cycle -> home -> Reviews
     await page.goto("/");
-    await page.getByRole("link", { name: "Reviews" }).click();
+    await nav.getByRole("link", { name: "Reviews" }).click();
     await expect(page).toHaveURL("/reviews");
     await expect(page.getByRole("heading", { name: "Restaurant Reviews" })).toBeVisible();
   });

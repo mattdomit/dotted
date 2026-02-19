@@ -24,16 +24,14 @@ test.describe("Dashboard Page", () => {
     );
     await page.goto("/dashboard");
 
-    await expect(page.getByText("Users")).toBeVisible();
-    await expect(page.getByText("150")).toBeVisible();
-    await expect(page.getByText("Restaurants")).toBeVisible();
-    await expect(page.getByText("12")).toBeVisible();
-    await expect(page.getByText("Suppliers")).toBeVisible();
-    await expect(page.getByText("8")).toBeVisible();
-    await expect(page.getByText("Cycles")).toBeVisible();
-    await expect(page.getByText("45")).toBeVisible();
-    await expect(page.getByText("Orders")).toBeVisible();
-    await expect(page.getByText("320")).toBeVisible();
+    // Each stat card is a bordered div with label + value
+    const statCards = page.locator(".rounded-lg.border.p-4");
+    await expect(statCards).toHaveCount(5);
+    await expect(statCards.filter({ hasText: "Users" }).getByText("150")).toBeVisible();
+    await expect(statCards.filter({ hasText: "Restaurants" }).getByText("12")).toBeVisible();
+    await expect(statCards.filter({ hasText: "Suppliers" }).getByText("8")).toBeVisible();
+    await expect(statCards.filter({ hasText: "Cycles" }).getByText("45")).toBeVisible();
+    await expect(statCards.filter({ hasText: "Orders" }).getByText("320")).toBeVisible();
   });
 
   test('"Cycle Controls" section is visible', async ({ page }) => {

@@ -73,13 +73,13 @@ test.describe("Enroll Page", () => {
   test("cuisine type checkboxes toggle on/off with visual feedback", async ({ page }) => {
     await page.goto("/enroll");
 
-    const italian = page.getByText("Italian", { exact: true }).locator(".."); // the label wrapper
+    const italian = page.locator("label", { hasText: /^Italian$/ });
     await expect(italian).not.toHaveClass(/border-primary/);
 
-    await page.getByText("Italian", { exact: true }).click();
+    await italian.click();
     await expect(italian).toHaveClass(/border-primary/);
 
-    await page.getByText("Italian", { exact: true }).click();
+    await italian.click();
     await expect(italian).not.toHaveClass(/border-primary/);
   });
 
