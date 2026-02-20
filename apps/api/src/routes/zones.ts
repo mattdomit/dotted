@@ -2,10 +2,11 @@ import { Router } from "express";
 import { prisma } from "@dotted/db";
 import { authenticate } from "../middleware/auth";
 import { AppError } from "../middleware/error-handler";
+import { cacheMiddleware } from "../middleware/cache";
 
 export const zoneRouter = Router();
 
-zoneRouter.get("/", async (_req, res, next) => {
+zoneRouter.get("/", cacheMiddleware(300, "zones"), async (_req, res, next) => {
   try {
     const zones = await prisma.zone.findMany({
       where: { isActive: true },
@@ -17,7 +18,7 @@ zoneRouter.get("/", async (_req, res, next) => {
   }
 });
 
-zoneRouter.get("/:id", async (req, res, next) => {
+zoneRouter.get("/:id", cacheMiddleware(120, "zone"), async (req, res, next) => {
   try {
     const zone = await prisma.zone.findUnique({
       where: { id: req.params.id as string },

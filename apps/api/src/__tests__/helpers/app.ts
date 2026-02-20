@@ -12,7 +12,10 @@ import { aiRouter } from "../../routes/ai";
 import { adminRouter } from "../../routes/admin";
 import { restaurantRouter } from "../../routes/restaurants";
 import { reviewRouter } from "../../routes/reviews";
+import { paymentRouter } from "../../routes/payments";
+import { notificationRouter } from "../../routes/notifications";
 import { errorHandler } from "../../middleware/error-handler";
+import passport from "passport";
 
 /**
  * Builds an Express app identical to src/index.ts but without
@@ -24,6 +27,7 @@ export function createApp() {
   app.use(helmet());
   app.use(cors());
   app.use(express.json());
+  app.use(passport.initialize());
 
   // Health check
   app.get("/api/health", (_req, res) => {
@@ -42,6 +46,8 @@ export function createApp() {
   app.use("/api/admin", adminRouter);
   app.use("/api/restaurants", restaurantRouter);
   app.use("/api/reviews", reviewRouter);
+  app.use("/api/payments", paymentRouter);
+  app.use("/api/notifications", notificationRouter);
 
   // Error handling
   app.use(errorHandler);

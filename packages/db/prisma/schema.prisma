@@ -23,7 +23,8 @@ model User {
   email        String   @unique
   name         String
   role         UserRole @default(CONSUMER)
-  passwordHash String
+  passwordHash String?
+  googleId     String?  @unique
   avatarUrl    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -35,6 +36,7 @@ model User {
   supplier        Supplier?
   zoneMemberships ZoneMembership[]
   reviews         Review[]
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -373,6 +375,7 @@ model Order {
   status          OrderStatus     @default(PENDING)
   fulfillmentType FulfillmentType @default(PICKUP)
   stripePaymentId String?
+  stripeSessionId String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -422,4 +425,26 @@ model Review {
 
   @@unique([userId, orderId])
   @@map("reviews")
+}
+
+// ============================================
+// Notifications
+// ============================================
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String    // ORDER_CONFIRMED, BID_WON, CYCLE_PHASE
+  title     String
+  body      String    @db.Text
+  channel   String    // EMAIL, SMS, IN_APP
+  status    String    @default("PENDING")
+  metadata  Json      @default("{}")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

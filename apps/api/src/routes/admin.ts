@@ -4,6 +4,7 @@ import { UserRole, CycleStatus } from "@dotted/shared";
 import { authenticate, requireRole } from "../middleware/auth";
 import { AppError } from "../middleware/error-handler";
 import { triggerCyclePhase } from "../jobs/daily-cycle";
+import { cacheMiddleware } from "../middleware/cache";
 
 export const adminRouter = Router();
 
@@ -11,6 +12,7 @@ adminRouter.get(
   "/analytics",
   authenticate,
   requireRole(UserRole.ADMIN),
+  cacheMiddleware(60, "admin:analytics"),
   async (_req, res, next) => {
     try {
       const [users, restaurants, suppliers, cycles, orders] = await Promise.all([

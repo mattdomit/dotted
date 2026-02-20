@@ -5,6 +5,8 @@ import { tallyVotes } from "../services/voting";
 import { scoreBidsAndSelectWinner } from "../services/bidding";
 import { optimizeSourcing } from "../ai/supplier-matcher";
 import { getIO } from "../socket/handlers";
+import { cacheInvalidate } from "../lib/redis";
+import { notify } from "../services/notifications";
 
 function emitCycleUpdate(cycleId: string, status: string) {
   getIO()?.to(`cycle:${cycleId}`).emit("cycle:status", { cycleId, status });
@@ -21,6 +23,21 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "VOTING" } });
       emitCycleUpdate(cycleId, "VOTING");
       console.log(`[Cycle ${cycleId}] Voting opened`);
+
+      // Notify zone members that voting is open
+      const voteMembers = await prisma.zoneMembership.findMany({
+        where: { zoneId: cycle.zoneId },
+        select: { userId: true },
+      });
+      for (const m of voteMembers) {
+        notify({
+          userId: m.userId,
+          type: "CYCLE_PHASE",
+          title: "Voting is Open!",
+          body: "Today's dish options are ready. Cast your vote now!",
+          channels: ["IN_APP"],
+        }).catch(() => {});
+      }
       break;
     }
 
@@ -50,6 +67,21 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "ORDERING" } });
       emitCycleUpdate(cycleId, "ORDERING");
       console.log(`[Cycle ${cycleId}] Orders open`);
+
+      // Notify zone members that ordering is open
+      const orderMembers = await prisma.zoneMembership.findMany({
+        where: { zoneId: cycle.zoneId },
+        select: { userId: true },
+      });
+      for (const m of orderMembers) {
+        notify({
+          userId: m.userId,
+          type: "CYCLE_PHASE",
+          title: "Orders are Open!",
+          body: "The winning dish is ready to order. Place your order now!",
+          channels: ["IN_APP"],
+        }).catch(() => {});
+      }
       break;
     }
 
@@ -67,6 +99,9 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       break;
     }
   }
+
+  // Invalidate cached cycle status after any transition
+  await cacheInvalidate("cycle:status:*");
 
   return prisma.dailyCycle.findUnique({
     where: { id: cycleId },

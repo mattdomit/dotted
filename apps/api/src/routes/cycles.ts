@@ -4,6 +4,7 @@ import { UserRole } from "@dotted/shared";
 import { authenticate, requireRole } from "../middleware/auth";
 import { AppError } from "../middleware/error-handler";
 import { triggerCyclePhase } from "../jobs/daily-cycle";
+import { cacheMiddleware } from "../middleware/cache";
 
 export const cycleRouter = Router();
 
@@ -43,7 +44,7 @@ cycleRouter.get("/today", async (req, res, next) => {
 });
 
 // GET /today/status — lightweight status check for today's cycle
-cycleRouter.get("/today/status", async (req, res, next) => {
+cycleRouter.get("/today/status", cacheMiddleware(15, "cycle:status"), async (req, res, next) => {
   try {
     const zoneId = req.query.zoneId as string;
     if (!zoneId) throw new AppError("zoneId query param required", 400);

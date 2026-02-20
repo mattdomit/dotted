@@ -157,6 +157,17 @@ export default function OrdersPage() {
                   ))}
                 </div>
 
+                {order.status === "PENDING" && (
+                  <div className="mt-3">
+                    <a
+                      href={`/checkout?orderId=${order.id}`}
+                      className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      Pay Now
+                    </a>
+                  </div>
+                )}
+
                 <div className="mt-3 text-xs text-muted-foreground">
                   Ordered {new Date(order.createdAt).toLocaleString()}
                 </div>

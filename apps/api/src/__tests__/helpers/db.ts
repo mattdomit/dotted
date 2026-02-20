@@ -6,6 +6,7 @@ import { prisma } from "@dotted/db";
  */
 export async function cleanDatabase() {
   await prisma.$transaction([
+    prisma.notification.deleteMany(),
     prisma.review.deleteMany(),
     prisma.orderItem.deleteMany(),
     prisma.order.deleteMany(),

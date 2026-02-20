@@ -48,7 +48,8 @@ describe("Order Routes — /api/orders", () => {
       expect(res.status).toBe(201);
       expect(res.body.data.totalPrice).toBe(45); // 15 * 3
       expect(res.body.data.quantity).toBe(3);
-      expect(res.body.data.status).toBe("PENDING");
+      // Dev mode (no STRIPE_SECRET_KEY): orders auto-confirm
+      expect(res.body.data.status).toBe("CONFIRMED");
     });
 
     it("should return 400 when cycle is not in ORDERING phase", async () => {

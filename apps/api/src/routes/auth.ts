@@ -1,10 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import passport from "passport";
 import { prisma } from "@dotted/db";
 import { registerSchema, loginSchema, UserRole } from "@dotted/shared";
 import { validate } from "../middleware/validate";
 import { authenticate, signToken } from "../middleware/auth";
 import { AppError } from "../middleware/error-handler";
+import { isOAuthConfigured } from "../lib/passport";
 
 export const authRouter = Router();
 
@@ -35,6 +37,10 @@ authRouter.post("/login", validate(loginSchema), async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new AppError("Invalid credentials", 401);
 
+    if (!user.passwordHash) {
+      throw new AppError("This account uses Google sign-in. Please use the Google button to log in.", 400);
+    }
+
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) throw new AppError("Invalid credentials", 401);
 
@@ -63,3 +69,26 @@ authRouter.get("/me", authenticate, async (req, res, next) => {
     next(err);
   }
 });
+
+// Google OAuth routes
+authRouter.get("/google", (req, res, next) => {
+  if (!isOAuthConfigured()) {
+    return next(new AppError("Google OAuth is not configured", 501));
+  }
+  passport.authenticate("google", { scope: ["profile", "email"], session: false })(req, res, next);
+});
+
+authRouter.get(
+  "/google/callback",
+  (req, res, next) => {
+    if (!isOAuthConfigured()) {
+      return next(new AppError("Google OAuth is not configured", 501));
+    }
+    passport.authenticate("google", { session: false, failureRedirect: "/login" }, (err: Error | null, data: { user: { id: string }; token: string } | false) => {
+      if (err || !data) {
+        return res.redirect(`${process.env.WEB_URL || "http://localhost:3000"}/login?error=oauth_failed`);
+      }
+      res.redirect(`${process.env.WEB_URL || "http://localhost:3000"}/login?token=${data.token}`);
+    })(req, res, next);
+  }
+);

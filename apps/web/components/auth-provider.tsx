@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, role: string) => Promise<void>;
   logout: () => void;
+  setTokenFromOAuth: (token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: () => {},
+  setTokenFromOAuth: () => {},
 });
 
 export function useAuth() {
@@ -81,8 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const setTokenFromOAuth = useCallback((oauthToken: string) => {
+    localStorage.setItem("token", oauthToken);
+    setToken(oauthToken);
+    apiFetch<{ data: AuthUser }>("/auth/me", { token: oauthToken })
+      .then((res) => setUser(res.data))
+      .catch(() => {
+        localStorage.removeItem("token");
+        setToken(null);
+      });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, setTokenFromOAuth }}>
       {children}
     </AuthContext.Provider>
   );

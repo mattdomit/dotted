@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@dotted/db";
 import { SUPPLIER_MATCH_WEIGHTS, AI_MODEL } from "@dotted/shared";
 import type { SupplierMatch } from "@dotted/shared";
+import { haversineDistance } from "../lib/geo";
 
 const anthropic = new Anthropic();
 
@@ -23,8 +24,12 @@ function scoreSupplierItem(
     pricePerUnit: number;
     rating: number;
     isOrganic: boolean;
+    supplierLat?: number | null;
+    supplierLng?: number | null;
   },
-  allPrices: number[]
+  allPrices: number[],
+  zoneLat?: number | null,
+  zoneLng?: number | null
 ): number {
   const minPrice = Math.min(...allPrices);
   const maxPrice = Math.max(...allPrices);
@@ -36,8 +41,17 @@ function scoreSupplierItem(
   const freshnessScore = item.isOrganic ? 1 : 0.5;
   // Rating normalized to 0-1
   const ratingScore = item.rating / 5;
-  // Distance placeholder (would use PostGIS in production)
-  const distanceScore = 0.7;
+
+  // Distance score: use real coordinates when available, fall back to 0.7
+  let distanceScore = 0.7;
+  if (
+    zoneLat != null && zoneLng != null &&
+    item.supplierLat != null && item.supplierLng != null
+  ) {
+    const distKm = haversineDistance(zoneLat, zoneLng, item.supplierLat, item.supplierLng);
+    // Normalize: 0km = 1.0, 50km+ = 0.0
+    distanceScore = Math.max(0, 1 - distKm / 50);
+  }
 
   return (
     SUPPLIER_MATCH_WEIGHTS.price * priceScore +
@@ -71,13 +85,23 @@ export async function optimizeSourcing(cycleId: string): Promise<SupplierMatch[]
 
   if (!winningDish) throw new Error("Winning dish not found");
 
-  // Get all available inventory in zone
+  // Get winning restaurant coordinates for distance calculation
+  const winningBid = cycle.winningBidId
+    ? await prisma.bid.findUnique({
+        where: { id: cycle.winningBidId },
+        include: { restaurant: { select: { latitude: true, longitude: true } } },
+      })
+    : null;
+  const refLat = winningBid?.restaurant?.latitude ?? null;
+  const refLng = winningBid?.restaurant?.longitude ?? null;
+
+  // Get all available inventory in zone with supplier coordinates
   const inventory = await prisma.supplierInventory.findMany({
     where: {
       supplier: { zoneId: cycle.zoneId },
       quantityAvailable: { gt: 0 },
     },
-    include: { supplier: { select: { id: true, businessName: true, rating: true } } },
+    include: { supplier: { select: { id: true, businessName: true, rating: true, latitude: true, longitude: true } } },
   });
 
   const matches: SupplierMatch[] = [];
@@ -108,8 +132,16 @@ export async function optimizeSourcing(cycleId: string): Promise<SupplierMatch[]
       rating: item.supplier.rating,
       isOrganic: item.isOrganic,
       score: scoreSupplierItem(
-        { pricePerUnit: item.pricePerUnit, rating: item.supplier.rating, isOrganic: item.isOrganic },
-        allPrices
+        {
+          pricePerUnit: item.pricePerUnit,
+          rating: item.supplier.rating,
+          isOrganic: item.isOrganic,
+          supplierLat: item.supplier.latitude,
+          supplierLng: item.supplier.longitude,
+        },
+        allPrices,
+        refLat,
+        refLng
       ),
     }));
 

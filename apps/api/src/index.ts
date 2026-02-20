@@ -16,8 +16,12 @@ import { aiRouter } from "./routes/ai";
 import { adminRouter } from "./routes/admin";
 import { restaurantRouter } from "./routes/restaurants";
 import { reviewRouter } from "./routes/reviews";
+import { paymentRouter } from "./routes/payments";
+import { notificationRouter } from "./routes/notifications";
 import { errorHandler } from "./middleware/error-handler";
 import { initCronJobs } from "./jobs/daily-cycle";
+import passport from "passport";
+import { initPassport } from "./lib/passport";
 
 const app = express();
 const httpServer = createServer(app);
@@ -28,6 +32,8 @@ app.use(helmet());
 app.use(cors({ origin: process.env.WEB_URL || "http://localhost:3000", credentials: true }));
 app.use(express.json());
 app.use(morgan("dev"));
+app.use(passport.initialize());
+initPassport();
 
 // Health check
 app.get("/api/health", (_req, res) => {
@@ -46,6 +52,8 @@ app.use("/api/ai", aiRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/restaurants", restaurantRouter);
 app.use("/api/reviews", reviewRouter);
+app.use("/api/payments", paymentRouter);
+app.use("/api/notifications", notificationRouter);
 
 // Error handling
 app.use(errorHandler);

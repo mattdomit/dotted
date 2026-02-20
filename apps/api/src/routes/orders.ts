@@ -5,6 +5,8 @@ import { authenticate, requireRole } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/error-handler";
 import { getIO } from "../socket/handlers";
+import { getStripe } from "../lib/stripe";
+import { notify } from "../services/notifications";
 
 export const orderRouter = Router();
 
@@ -47,6 +49,27 @@ orderRouter.post("/", authenticate, validate(createOrderSchema), async (req, res
       include: { items: true },
     });
 
+    // Notify user of order creation
+    notify({
+      userId,
+      type: "ORDER_CREATED",
+      title: "Order Placed",
+      body: `Your order of ${quantity} plate(s) has been placed.`,
+      channels: ["IN_APP"],
+    }).catch(() => {}); // Fire-and-forget
+
+    // If Stripe is not configured, auto-confirm in dev mode
+    const stripe = getStripe();
+    if (!stripe) {
+      const confirmed = await prisma.order.update({
+        where: { id: order.id },
+        data: { status: "CONFIRMED" },
+        include: { items: true },
+      });
+      res.status(201).json({ success: true, data: confirmed });
+      return;
+    }
+
     res.status(201).json({ success: true, data: order });
   } catch (err) {
     next(err);
@@ -86,6 +109,15 @@ orderRouter.patch(
         orderId: order.id,
         status: order.status,
       });
+
+      // Notify user of status change
+      notify({
+        userId: order.userId,
+        type: "ORDER_STATUS",
+        title: `Order ${order.status}`,
+        body: `Your order status has been updated to ${order.status}.`,
+        channels: ["IN_APP"],
+      }).catch(() => {});
 
       res.json({ success: true, data: order });
     } catch (err) {
