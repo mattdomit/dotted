@@ -109,7 +109,8 @@ export default function CyclePage() {
 
       setZoneId(zid);
     } catch (err: any) {
-      if (err.message.includes("404") || err.message.includes("No cycle")) {
+      const msg = (err.message || "").toLowerCase();
+      if (msg.includes("404") || msg.includes("not found") || msg.includes("no cycle")) {
         setError("No cycle found for today in this zone.");
       } else {
         setError("Could not load cycle data.");
@@ -152,6 +153,7 @@ export default function CyclePage() {
       <form onSubmit={handleSearch} className="mb-8 flex gap-2">
         <div className="flex-1">
           <ZonePicker
+            id="zoneId"
             value={zoneInput}
             onChange={(id) => setZoneInput(id)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"

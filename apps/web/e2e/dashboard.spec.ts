@@ -13,8 +13,23 @@ const MOCK_ANALYTICS = {
   },
 };
 
+const MOCK_ADMIN = {
+  data: { id: "admin-1", name: "Admin User", email: "admin@test.com", role: "ADMIN" },
+};
+
+/** Inject auth so dashboard fetches analytics instead of showing zeros. */
+async function injectAdminAuth(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("token", "fake-admin-token");
+  });
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ADMIN) })
+  );
+}
+
 test.describe("Dashboard Page", () => {
   test("analytics data displays in 5 stat cards", async ({ page }) => {
+    await injectAdminAuth(page);
     await page.route("**/api/admin/analytics", (route) =>
       route.fulfill({
         status: 200,
@@ -35,6 +50,7 @@ test.describe("Dashboard Page", () => {
   });
 
   test('"Cycle Controls" section is visible', async ({ page }) => {
+    await injectAdminAuth(page);
     await page.route("**/api/admin/analytics", (route) =>
       route.fulfill({
         status: 200,
@@ -48,6 +64,7 @@ test.describe("Dashboard Page", () => {
   });
 
   test("API failure shows graceful fallback with zeros", async ({ page }) => {
+    await injectAdminAuth(page);
     await page.route("**/api/admin/analytics", (route) =>
       route.fulfill({ status: 500, body: "Internal Server Error" })
     );
@@ -56,10 +73,11 @@ test.describe("Dashboard Page", () => {
     // Should show 0 for all stats as fallback
     const zeroCells = page.locator("text=0");
     await expect(zeroCells.first()).toBeVisible();
-    await expect(page.getByText("Users")).toBeVisible();
+    await expect(page.getByText("Users", { exact: true })).toBeVisible();
   });
 
   test("loading state visible before data loads", async ({ page }) => {
+    await injectAdminAuth(page);
     await page.route("**/api/admin/analytics", async (route) => {
       // Delay the response by 2 seconds
       await new Promise((resolve) => setTimeout(resolve, 2000));

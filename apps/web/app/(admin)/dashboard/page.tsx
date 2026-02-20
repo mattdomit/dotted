@@ -28,6 +28,7 @@ export default function AdminDashboard() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     apiFetch<{ data: Analytics }>("/admin/analytics")
       .then((res) => setAnalytics(res.data))
       .catch(() => {})

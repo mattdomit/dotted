@@ -15,9 +15,10 @@ interface ZonePickerProps {
   value: string;
   onChange: (zoneId: string) => void;
   className?: string;
+  id?: string;
 }
 
-export function ZonePicker({ value, onChange, className }: ZonePickerProps) {
+export function ZonePicker({ value, onChange, className, id }: ZonePickerProps) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,6 +31,7 @@ export function ZonePicker({ value, onChange, className }: ZonePickerProps) {
 
   return (
     <select
+      id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={className || "w-full rounded-md border bg-background px-3 py-2 text-sm"}

@@ -12,6 +12,16 @@ const MOCK_RESTAURANT = {
     city: "San Francisco",
     state: "CA",
     zipCode: "94102",
+    zoneId: "zone-1",
+  },
+};
+
+const MOCK_CYCLE = {
+  data: {
+    id: "cycle-bid-1",
+    status: "BIDDING",
+    winningDishId: "dish-win-1",
+    dishes: [{ id: "dish-win-1", name: "Truffle Risotto" }],
   },
 };
 
@@ -47,6 +57,13 @@ test.describe("Bids Page", () => {
         body: JSON.stringify(MOCK_RESTAURANT),
       })
     );
+    await restaurantPage.route("**/api/cycles/today*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_CYCLE),
+      })
+    );
     await restaurantPage.goto("/bids");
 
     await expect(restaurantPage.getByText("Bay Bites Kitchen")).toBeVisible();
@@ -64,6 +81,20 @@ test.describe("Bids Page", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(MOCK_RESTAURANT),
+      })
+    );
+    await restaurantPage.route("**/api/cycles/today*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_CYCLE),
+      })
+    );
+    await restaurantPage.route("**/api/bids", (route) =>
+      route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { id: "bid-1" } }),
       })
     );
     await restaurantPage.goto("/bids");

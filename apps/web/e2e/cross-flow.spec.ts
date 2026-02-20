@@ -22,10 +22,19 @@ test.describe("Cross-Flow Navigation", () => {
   });
 
   test("restaurant owner: bids (no restaurant) -> enroll page", async ({ page }) => {
-    // Set up a token so bids page doesn't show "Sign In Required"
+    // Inject auth token and mock auth/me so bids page shows "Enrollment Required"
     await page.addInitScript(() => {
       localStorage.setItem("token", "fake-token-for-nav-test");
     });
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { id: "user-nav", name: "Nav Test", email: "nav@test.com", role: "RESTAURANT_OWNER" },
+        }),
+      })
+    );
 
     // Mock the restaurant lookup to return 404
     await page.route("**/api/restaurants/mine", (route) =>

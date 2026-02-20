@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const host = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_BASE = host.endsWith("/api") ? host : `${host}/api`;
 
 export async function apiFetch<T = unknown>(
   path: string,

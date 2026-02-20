@@ -4,7 +4,7 @@ test.describe("Reviews Page", () => {
   test("heading and search form render", async ({ page }) => {
     await page.goto("/reviews");
     await expect(page.getByRole("heading", { name: "Restaurant Reviews" })).toBeVisible();
-    await expect(page.getByPlaceholder("Enter Restaurant ID")).toBeVisible();
+    await expect(page.getByPlaceholder(/Enter Restaurant ID/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Search" })).toBeVisible();
   });
 
@@ -13,7 +13,7 @@ test.describe("Reviews Page", () => {
       route.fulfill({ status: 404, body: JSON.stringify({ error: "Not found" }) })
     );
     await page.goto("/reviews");
-    await page.getByPlaceholder("Enter Restaurant ID").fill("nonexistent-id");
+    await page.getByPlaceholder(/Enter Restaurant ID/).fill("nonexistent-id");
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByText("Could not load reviews")).toBeVisible();
   });
@@ -50,7 +50,7 @@ test.describe("Reviews Page", () => {
       })
     );
     await page.goto("/reviews");
-    await page.getByPlaceholder("Enter Restaurant ID").fill("valid-restaurant-id");
+    await page.getByPlaceholder(/Enter Restaurant ID/).fill("valid-restaurant-id");
     await page.getByRole("button", { name: "Search" }).click();
 
     await expect(page.getByText("Amazing Food!")).toBeVisible();

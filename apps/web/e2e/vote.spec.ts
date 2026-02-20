@@ -33,6 +33,20 @@ const MOCK_CYCLE = {
   },
 };
 
+const MOCK_USER = {
+  data: { id: "user-1", name: "Test Voter", email: "voter@test.com", role: "CONSUMER" },
+};
+
+/** Inject a fake auth token and mock /auth/me so the page considers the user authenticated. */
+async function injectFakeAuth(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("token", "fake-voter-token");
+  });
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_USER) })
+  );
+}
+
 test.describe("Vote Page", () => {
   test("no active cycle shows fallback heading", async ({ page }) => {
     await page.route("**/api/cycles/today*", (route) =>
@@ -63,6 +77,7 @@ test.describe("Vote Page", () => {
   });
 
   test('click "Vote for This" triggers optimistic update', async ({ page }) => {
+    await injectFakeAuth(page);
     await page.route("**/api/cycles/today*", (route) =>
       route.fulfill({
         status: 200,
@@ -106,6 +121,7 @@ test.describe("Vote Page", () => {
   });
 
   test("vote API returns 409 shows error message", async ({ page }) => {
+    await injectFakeAuth(page);
     await page.route("**/api/cycles/today*", (route) =>
       route.fulfill({
         status: 200,

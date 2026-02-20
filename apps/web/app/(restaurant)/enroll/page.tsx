@@ -455,6 +455,7 @@ export default function EnrollPage() {
             Zone
           </label>
           <ZonePicker
+            id="zoneId"
             value={formData.zoneId}
             onChange={(id) => setFormData((prev) => ({ ...prev, zoneId: id }))}
             className={inputClass}

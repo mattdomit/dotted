@@ -60,7 +60,8 @@ export default function BidsPage() {
         if (cycleRes) setCycle(cycleRes.data);
       })
       .catch((err) => {
-        if (err.message.includes("404") || err.message.includes("not found") || err.message.includes("No restaurant")) {
+        const msg = (err.message || "").toLowerCase();
+        if (msg.includes("404") || msg.includes("not found") || msg.includes("no restaurant")) {
           setPageState("no-restaurant");
         } else {
           setPageState("no-auth");

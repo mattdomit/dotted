@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+const MOCK_ZONES = {
+  data: [
+    { id: "zone-1", name: "Downtown Demo District", slug: "downtown-demo", city: "Austin", state: "TX" },
+  ],
+};
+
 const MOCK_STATUS = {
   data: {
     id: "cycle-100",
@@ -38,24 +44,33 @@ const MOCK_DETAIL = {
 
 test.describe("Cycle Page", () => {
   test("heading and zone search form render", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.goto("/cycle");
     await expect(page.getByRole("heading", { name: "Daily Cycle Dashboard" })).toBeVisible();
-    await expect(page.getByPlaceholder("Enter Zone ID")).toBeVisible();
+    await expect(page.locator("#zoneId")).toBeVisible();
     await expect(page.getByRole("button", { name: "Track Cycle" })).toBeVisible();
   });
 
   test("nonexistent zone shows error message", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.route("**/api/cycles/today/status*", (route) =>
       route.fulfill({ status: 404, body: JSON.stringify({ error: "Not found" }) })
     );
     await page.goto("/cycle");
-    await page.getByPlaceholder("Enter Zone ID").fill("bad-zone-id");
+    await page.locator("#zoneId").selectOption("zone-1");
     await page.getByRole("button", { name: "Track Cycle" }).click();
 
     await expect(page.getByText("No cycle found for today in this zone")).toBeVisible();
   });
 
   test("valid zone shows phase card, stats grid, dish list, and timeline", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.route("**/api/cycles/today/status*", (route) =>
       route.fulfill({
         status: 200,
@@ -71,7 +86,7 @@ test.describe("Cycle Page", () => {
       })
     );
     await page.goto("/cycle");
-    await page.getByPlaceholder("Enter Zone ID").fill("demo-zone");
+    await page.locator("#zoneId").selectOption("zone-1");
     await page.getByRole("button", { name: "Track Cycle" }).click();
 
     // Phase card — use exact: true to avoid matching the timeline entry "Community voting"
@@ -91,6 +106,9 @@ test.describe("Cycle Page", () => {
   });
 
   test("all 6 timeline entries are visible", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.route("**/api/cycles/today/status*", (route) =>
       route.fulfill({
         status: 200,
@@ -106,7 +124,7 @@ test.describe("Cycle Page", () => {
       })
     );
     await page.goto("/cycle");
-    await page.getByPlaceholder("Enter Zone ID").fill("demo-zone");
+    await page.locator("#zoneId").selectOption("zone-1");
     await page.getByRole("button", { name: "Track Cycle" }).click();
 
     await expect(page.getByText("AI generates dishes")).toBeVisible();

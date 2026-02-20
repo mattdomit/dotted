@@ -1,7 +1,16 @@
 import { test, expect } from "./helpers/fixtures";
 
+const MOCK_ZONES = {
+  data: [
+    { id: "zone-1", name: "Downtown Demo District", slug: "downtown-demo", city: "Austin", state: "TX" },
+  ],
+};
+
 test.describe("Enroll Page", () => {
   test("all 6 form sections render", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.goto("/enroll");
 
     await expect(page.getByRole("heading", { name: "Restaurant Enrollment" })).toBeVisible();
@@ -14,6 +23,9 @@ test.describe("Enroll Page", () => {
   });
 
   test("submit without auth shows sign-in error", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.goto("/enroll");
 
     // Fill required fields minimally
@@ -32,13 +44,16 @@ test.describe("Enroll Page", () => {
     await page.locator("#kitchenCapacity").fill("100");
     await page.locator("#healthPermitNumber").fill("HP-123");
     await page.locator("#insurancePolicyNumber").fill("INS-456");
-    await page.locator("#zoneId").fill("some-zone-id");
+    await page.locator("#zoneId").selectOption("zone-1");
 
     await page.getByRole("button", { name: "Complete Enrollment" }).click();
     await expect(page.getByText("You must be signed in to enroll")).toBeVisible();
   });
 
   test("full form fill with auth redirects to /bids", async ({ restaurantPage }) => {
+    await restaurantPage.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await restaurantPage.route("**/api/restaurants/enroll", (route) =>
       route.fulfill({
         status: 201,
@@ -64,13 +79,16 @@ test.describe("Enroll Page", () => {
     await restaurantPage.locator("#kitchenCapacity").fill("150");
     await restaurantPage.locator("#healthPermitNumber").fill("HP-E2E");
     await restaurantPage.locator("#insurancePolicyNumber").fill("INS-E2E");
-    await restaurantPage.locator("#zoneId").fill("demo-zone-id");
+    await restaurantPage.locator("#zoneId").selectOption("zone-1");
 
     await restaurantPage.getByRole("button", { name: "Complete Enrollment" }).click();
     await expect(restaurantPage).toHaveURL("/bids");
   });
 
   test("cuisine type checkboxes toggle on/off with visual feedback", async ({ page }) => {
+    await page.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await page.goto("/enroll");
 
     const italian = page.locator("label", { hasText: /^Italian$/ });
@@ -84,6 +102,9 @@ test.describe("Enroll Page", () => {
   });
 
   test("API returns validation error displayed inline", async ({ restaurantPage }) => {
+    await restaurantPage.route("**/api/zones", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_ZONES) })
+    );
     await restaurantPage.route("**/api/restaurants/enroll", (route) =>
       route.fulfill({
         status: 400,
@@ -110,7 +131,7 @@ test.describe("Enroll Page", () => {
     await restaurantPage.locator("#kitchenCapacity").fill("10");
     await restaurantPage.locator("#healthPermitNumber").fill("HP-1");
     await restaurantPage.locator("#insurancePolicyNumber").fill("INS-1");
-    await restaurantPage.locator("#zoneId").fill("zone-1");
+    await restaurantPage.locator("#zoneId").selectOption("zone-1");
 
     await restaurantPage.getByRole("button", { name: "Complete Enrollment" }).click();
     await expect(restaurantPage.getByText("Business name is required")).toBeVisible();
