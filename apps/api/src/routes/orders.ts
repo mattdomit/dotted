@@ -92,6 +92,33 @@ orderRouter.get("/mine", authenticate, async (req, res, next) => {
   }
 });
 
+// GET /restaurant — get all orders for the restaurant owner's restaurant
+orderRouter.get(
+  "/restaurant",
+  authenticate,
+  requireRole(UserRole.RESTAURANT_OWNER),
+  async (req, res, next) => {
+    try {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { ownerId: req.user!.userId },
+      });
+      if (!restaurant) throw new AppError("No restaurant found for this user", 404);
+
+      const orders = await prisma.order.findMany({
+        where: { restaurantId: restaurant.id },
+        include: {
+          items: { include: { dish: { select: { name: true } } } },
+          user: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json({ success: true, data: orders });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 orderRouter.patch(
   "/:id/status",
   authenticate,
@@ -99,27 +126,39 @@ orderRouter.patch(
   validate(updateOrderStatusSchema),
   async (req, res, next) => {
     try {
-      const order = await prisma.order.update({
-        where: { id: req.params.id as string },
+      const orderId = req.params.id as string;
+
+      // Verify order exists and belongs to this restaurant owner's restaurant
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { restaurant: { select: { ownerId: true } } },
+      });
+      if (!order) throw new AppError("Order not found", 404);
+      if (order.restaurant.ownerId !== req.user!.userId) {
+        throw new AppError("You can only update orders for your own restaurant", 403);
+      }
+
+      const updated = await prisma.order.update({
+        where: { id: orderId },
         data: { status: req.body.status },
       });
 
       // Emit real-time status update
-      getIO()?.to(`order:${order.id}`).emit("order:status", {
-        orderId: order.id,
-        status: order.status,
+      getIO()?.to(`order:${updated.id}`).emit("order:status", {
+        orderId: updated.id,
+        status: updated.status,
       });
 
       // Notify user of status change
       notify({
-        userId: order.userId,
+        userId: updated.userId,
         type: "ORDER_STATUS",
-        title: `Order ${order.status}`,
-        body: `Your order status has been updated to ${order.status}.`,
+        title: `Order ${updated.status}`,
+        body: `Your order status has been updated to ${updated.status}.`,
         channels: ["IN_APP"],
       }).catch(() => {});
 
-      res.json({ success: true, data: order });
+      res.json({ success: true, data: updated });
     } catch (err) {
       next(err);
     }

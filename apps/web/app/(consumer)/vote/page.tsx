@@ -33,8 +33,34 @@ export default function VotePage() {
   useEffect(() => {
     async function fetchCycle() {
       try {
+        // Get user's zone dynamically; fall back to first available zone
+        let zoneId: string | null = null;
+
+        if (token) {
+          try {
+            const myZones = await apiFetch<{ data: { id: string }[] }>("/zones/mine");
+            if (myZones.data.length > 0) {
+              zoneId = myZones.data[0].id;
+            }
+          } catch {
+            // Fall through to all-zones fallback
+          }
+        }
+
+        if (!zoneId) {
+          const allZones = await apiFetch<{ data: { id: string }[] }>("/zones");
+          if (allZones.data.length > 0) {
+            zoneId = allZones.data[0].id;
+          }
+        }
+
+        if (!zoneId) {
+          setError("No zones available.");
+          return;
+        }
+
         const res = await apiFetch<{ data: CycleData }>(
-          "/cycles/today?zoneId=demo"
+          `/cycles/today?zoneId=${zoneId}`
         );
         setCycle(res.data);
       } catch (err: any) {
@@ -44,7 +70,7 @@ export default function VotePage() {
       }
     }
     fetchCycle();
-  }, []);
+  }, [token]);
 
   // Live vote updates via socket.io
   useEffect(() => {

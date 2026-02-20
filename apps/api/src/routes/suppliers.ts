@@ -88,6 +88,58 @@ supplierRouter.post(
   }
 );
 
+// PATCH /inventory/:id — update an inventory item
+supplierRouter.patch(
+  "/inventory/:id",
+  authenticate,
+  requireRole(UserRole.SUPPLIER),
+  async (req, res, next) => {
+    try {
+      const supplier = await prisma.supplier.findUnique({ where: { ownerId: req.user!.userId } });
+      if (!supplier) throw new AppError("Supplier profile not found", 404);
+
+      const item = await prisma.supplierInventory.findUnique({ where: { id: req.params.id as string } });
+      if (!item) throw new AppError("Inventory item not found", 404);
+      if (item.supplierId !== supplier.id) throw new AppError("Unauthorized", 403);
+
+      const { pricePerUnit, quantityAvailable, isOrganic } = req.body;
+      const updated = await prisma.supplierInventory.update({
+        where: { id: item.id },
+        data: {
+          ...(pricePerUnit !== undefined && { pricePerUnit }),
+          ...(quantityAvailable !== undefined && { quantityAvailable }),
+          ...(isOrganic !== undefined && { isOrganic }),
+        },
+      });
+      res.json({ success: true, data: updated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /inventory/:id — remove an inventory item
+supplierRouter.delete(
+  "/inventory/:id",
+  authenticate,
+  requireRole(UserRole.SUPPLIER),
+  async (req, res, next) => {
+    try {
+      const supplier = await prisma.supplier.findUnique({ where: { ownerId: req.user!.userId } });
+      if (!supplier) throw new AppError("Supplier profile not found", 404);
+
+      const item = await prisma.supplierInventory.findUnique({ where: { id: req.params.id as string } });
+      if (!item) throw new AppError("Inventory item not found", 404);
+      if (item.supplierId !== supplier.id) throw new AppError("Unauthorized", 403);
+
+      await prisma.supplierInventory.delete({ where: { id: item.id } });
+      res.json({ success: true, data: { deleted: true } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 supplierRouter.get(
   "/orders",
   authenticate,

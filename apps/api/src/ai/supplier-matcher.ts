@@ -203,21 +203,31 @@ For each missing ingredient, suggest the best available substitute or indicate i
     group.total += cost;
   }
 
-  // Create purchase orders
+  // Create purchase orders and deduct inventory in a transaction
   for (const [, group] of supplierGroups) {
-    await prisma.purchaseOrder.create({
-      data: {
-        dailyCycleId: cycleId,
-        supplierId: group.supplierId,
-        totalCost: group.total,
-        items: {
-          create: group.items.map((item) => ({
-            inventoryItemId: item.inventoryId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-          })),
+    await prisma.$transaction(async (tx) => {
+      await tx.purchaseOrder.create({
+        data: {
+          dailyCycleId: cycleId,
+          supplierId: group.supplierId,
+          totalCost: group.total,
+          items: {
+            create: group.items.map((item) => ({
+              inventoryItemId: item.inventoryId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+          },
         },
-      },
+      });
+
+      // Deduct inventory for each item
+      for (const item of group.items) {
+        await tx.supplierInventory.update({
+          where: { id: item.inventoryId },
+          data: { quantityAvailable: { decrement: item.quantity } },
+        });
+      }
     });
   }
 

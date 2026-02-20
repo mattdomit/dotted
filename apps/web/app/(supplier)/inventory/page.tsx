@@ -84,8 +84,33 @@ export default function InventoryPage() {
     });
   }
 
-  function handleRemoveItem(id: string) {
+  async function handleRemoveItem(id: string) {
+    if (token) {
+      try {
+        await apiFetch(`/suppliers/inventory/${id}`, { method: "DELETE" });
+      } catch (err: any) {
+        setError(err.message || "Failed to remove item");
+        return;
+      }
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  async function handleUpdateItem(id: string, field: string, value: number | boolean) {
+    if (token) {
+      try {
+        await apiFetch(`/suppliers/inventory/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ [field]: value }),
+        });
+      } catch (err: any) {
+        setError(err.message || "Failed to update item");
+        return;
+      }
+    }
+    setItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, [field]: value } : i))
+    );
   }
 
   return (
@@ -261,12 +286,40 @@ export default function InventoryPage() {
                         <span className="ml-2 text-xs">({item.category})</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleRemoveItem(item.id)}
-                      className="text-sm text-destructive hover:underline"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() =>
+                            handleUpdateItem(
+                              item.id,
+                              "quantityAvailable",
+                              Math.max(0, item.quantityAvailable - 10)
+                            )
+                          }
+                          className="rounded border px-2 py-0.5 text-xs hover:bg-muted"
+                        >
+                          -10
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleUpdateItem(
+                              item.id,
+                              "quantityAvailable",
+                              item.quantityAvailable + 10
+                            )
+                          }
+                          className="rounded border px-2 py-0.5 text-xs hover:bg-muted"
+                        >
+                          +10
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="text-sm text-destructive hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

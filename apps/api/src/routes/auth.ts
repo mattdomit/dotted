@@ -7,10 +7,11 @@ import { validate } from "../middleware/validate";
 import { authenticate, signToken } from "../middleware/auth";
 import { AppError } from "../middleware/error-handler";
 import { isOAuthConfigured } from "../lib/passport";
+import { loginLimiter, registerLimiter } from "../middleware/rate-limit";
 
 export const authRouter = Router();
 
-authRouter.post("/register", validate(registerSchema), async (req, res, next) => {
+authRouter.post("/register", registerLimiter, validate(registerSchema), async (req, res, next) => {
   try {
     const { email, password, name, role } = req.body;
 
@@ -30,7 +31,7 @@ authRouter.post("/register", validate(registerSchema), async (req, res, next) =>
   }
 });
 
-authRouter.post("/login", validate(loginSchema), async (req, res, next) => {
+authRouter.post("/login", loginLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
 

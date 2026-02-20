@@ -83,18 +83,67 @@ paymentRouter.post("/webhook", raw({ type: "application/json" }), async (req, re
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as { id: string; metadata?: { orderId?: string }; payment_status: string };
       if (session.payment_status === "paid" && session.metadata?.orderId) {
-        await prisma.order.update({
+        // Idempotency: only update if not already confirmed
+        const existing = await prisma.order.findUnique({
           where: { id: session.metadata.orderId },
-          data: {
-            status: "CONFIRMED",
-            stripePaymentId: session.id,
-            stripeSessionId: session.id,
-          },
+          select: { stripePaymentId: true },
         });
+        if (!existing?.stripePaymentId) {
+          await prisma.order.update({
+            where: { id: session.metadata.orderId },
+            data: {
+              status: "CONFIRMED",
+              stripePaymentId: session.id,
+              stripeSessionId: session.id,
+            },
+          });
+        }
       }
     }
 
     res.json({ received: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /refund — refund an order payment
+paymentRouter.post("/refund", authenticate, async (req, res, next) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) throw new AppError("orderId is required", 400);
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new AppError("Order not found", 404);
+    if (order.userId !== req.user!.userId) throw new AppError("Unauthorized", 403);
+    if (order.status === "REFUNDED") throw new AppError("Order already refunded", 400);
+
+    const stripe = getStripe();
+    if (!stripe) {
+      // Dev mode: just mark as refunded
+      const updated = await prisma.order.update({
+        where: { id: orderId },
+        data: { status: "REFUNDED" },
+      });
+      res.json({ success: true, data: { devMode: true, order: updated } });
+      return;
+    }
+
+    if (!order.stripeSessionId) throw new AppError("No payment session found for this order", 400);
+
+    const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
+    if (!session.payment_intent) throw new AppError("No payment intent found", 400);
+
+    await stripe.refunds.create({
+      payment_intent: session.payment_intent as string,
+    });
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "REFUNDED" },
+    });
+
+    res.json({ success: true, data: { order: updated } });
   } catch (err) {
     next(err);
   }

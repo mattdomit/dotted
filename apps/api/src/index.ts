@@ -23,21 +23,61 @@ import { initCronJobs } from "./jobs/daily-cycle";
 import passport from "passport";
 import { initPassport } from "./lib/passport";
 
+// Validate required environment variables on startup
+const REQUIRED_ENV = ["DATABASE_URL"];
+const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`Missing required environment variables: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+// Log optional service availability
+const OPTIONAL_SERVICES = [
+  { key: "STRIPE_SECRET_KEY", name: "Stripe Payments" },
+  { key: "GOOGLE_CLIENT_ID", name: "Google OAuth" },
+  { key: "RESEND_API_KEY", name: "Resend Email" },
+  { key: "REDIS_URL", name: "Redis Cache" },
+];
+for (const svc of OPTIONAL_SERVICES) {
+  if (!process.env[svc.key]) {
+    console.warn(`${svc.name}: disabled (${svc.key} not set)`);
+  }
+}
+
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.API_PORT || 4000;
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.WEB_URL || "http://localhost:3000", credentials: true }));
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.WEB_URL || "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim());
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(morgan("dev"));
 app.use(passport.initialize());
 initPassport();
 
 // Health check
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/api/health", async (_req, res) => {
+  const health: Record<string, string> = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: `${Math.floor(process.uptime())}s`,
+  };
+
+  // Check DB connectivity
+  try {
+    const { prisma } = await import("@dotted/db");
+    await prisma.$queryRaw`SELECT 1`;
+    health.database = "connected";
+  } catch {
+    health.database = "disconnected";
+    health.status = "degraded";
+  }
+
+  res.status(health.status === "ok" ? 200 : 503).json(health);
 });
 
 // Routes

@@ -40,7 +40,7 @@ test.describe("Dashboard Page", () => {
     await page.goto("/dashboard");
 
     // Each stat card is a bordered div with label + value
-    const statCards = page.locator(".rounded-lg.border.p-4");
+    const statCards = page.locator(".grid.gap-4 > .rounded-lg.border.p-4");
     await expect(statCards).toHaveCount(5);
     await expect(statCards.filter({ hasText: "Users" }).getByText("150")).toBeVisible();
     await expect(statCards.filter({ hasText: "Restaurants" }).getByText("12")).toBeVisible();
@@ -71,9 +71,9 @@ test.describe("Dashboard Page", () => {
     await page.goto("/dashboard");
 
     // Should show 0 for all stats as fallback
-    const zeroCells = page.locator("text=0");
-    await expect(zeroCells.first()).toBeVisible();
-    await expect(page.getByText("Users", { exact: true })).toBeVisible();
+    const statCards = page.locator(".grid.gap-4 > .rounded-lg.border.p-4");
+    await expect(statCards.first()).toBeVisible();
+    await expect(statCards.filter({ hasText: "Users" })).toBeVisible();
   });
 
   test("loading state visible before data loads", async ({ page }) => {

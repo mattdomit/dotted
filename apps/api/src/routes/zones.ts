@@ -31,6 +31,20 @@ zoneRouter.get("/:id", cacheMiddleware(120, "zone"), async (req, res, next) => {
   }
 });
 
+// GET /mine — get zones the authenticated user belongs to
+zoneRouter.get("/mine", authenticate, async (req, res, next) => {
+  try {
+    const memberships = await prisma.zoneMembership.findMany({
+      where: { userId: req.user!.userId },
+      include: { zone: { select: { id: true, name: true, slug: true, city: true, state: true } } },
+      orderBy: { joinedAt: "desc" },
+    });
+    res.json({ success: true, data: memberships.map((m) => m.zone) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 zoneRouter.post("/:id/join", authenticate, async (req, res, next) => {
   try {
     const zoneId = req.params.id as string;

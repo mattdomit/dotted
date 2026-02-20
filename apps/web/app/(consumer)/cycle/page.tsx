@@ -220,8 +220,16 @@ export default function CyclePage() {
           {/* Current Phase Card */}
           {phaseConfig && (
             <div className={`mb-8 rounded-lg border p-6 ${phaseConfig.color}`}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between">
                 <div className="text-2xl font-bold">{phaseConfig.label}</div>
+                {currentPhase === "ORDERING" && cycleStatus && (
+                  <a
+                    href={`/order?cycleId=${cycleStatus.id}`}
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    Order Now
+                  </a>
+                )}
               </div>
               <p className="mt-2 text-sm">{phaseConfig.description}</p>
             </div>

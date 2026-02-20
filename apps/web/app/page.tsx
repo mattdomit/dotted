@@ -113,8 +113,12 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t py-8">
-        <div className="container text-center text-sm text-muted-foreground">
-          Dotted — Hyperlocal community food, powered by AI.
+        <div className="container flex flex-col items-center gap-2 text-center text-sm text-muted-foreground sm:flex-row sm:justify-between">
+          <span>Dotted — Hyperlocal community food, powered by AI.</span>
+          <div className="flex gap-4">
+            <Link href="/terms" className="hover:text-foreground">Terms</Link>
+            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+          </div>
         </div>
       </footer>
     </div>
