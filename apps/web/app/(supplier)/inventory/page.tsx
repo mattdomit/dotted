@@ -89,7 +89,7 @@ export default function InventoryPage() {
       }
     } else {
       // Fallback to local state for unauthenticated demo
-      setItems((prev) => [...prev, { id: crypto.randomUUID(), ...item }]);
+      setItems((prev) => [...prev, { id: crypto.randomUUID(), ...item } as InventoryItem]);
     }
 
     setNewItem({
