@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@dotted/db";
-import { AI_MODEL, AI_MAX_TOKENS, SEASONAL_INGREDIENTS } from "@dotted/shared";
+import { AI_MODEL, AI_MAX_TOKENS, SEASONAL_INGREDIENTS, DEFAULT_OPTIMIZATION_WEIGHTS } from "@dotted/shared";
 import type { DishSuggestion } from "@dotted/shared";
+import { computeDishOptimizationScores, getZoneWeights } from "../services/optimization";
 
 const anthropic = new Anthropic();
 
@@ -19,6 +20,8 @@ Rules:
 - Respect dietary restrictions and preferences of the community
 - Stay within the budget ceiling if one is provided
 - Prioritize preferred cuisines when specified
+- Consider equipment availability in the zone's restaurants
+- Include equipment requirements for each dish
 
 You MUST respond using the provided tool to return structured dish suggestions.`;
 
@@ -38,6 +41,7 @@ const DISH_TOOL: Anthropic.Tool = {
             cuisine: { type: "string", description: "Cuisine type (e.g., Italian, Mexican, Asian Fusion)" },
             estimatedCost: { type: "number", description: "Estimated cost per plate in USD" },
             tags: { type: "array", items: { type: "string" }, description: "Tags like vegetarian, gluten-free, spicy" },
+            equipmentRequired: { type: "array", items: { type: "string" }, description: "Required equipment like oven, grill, fryer, wok, tandoor" },
             recipeSpec: {
               type: "object",
               properties: {
@@ -64,7 +68,7 @@ const DISH_TOOL: Anthropic.Tool = {
               },
             },
           },
-          required: ["name", "description", "cuisine", "estimatedCost", "tags", "recipeSpec", "ingredients"],
+          required: ["name", "description", "cuisine", "estimatedCost", "tags", "equipmentRequired", "recipeSpec", "ingredients"],
         },
         minItems: 3,
         maxItems: 5,
@@ -78,7 +82,15 @@ export async function generateDishSuggestions(zoneId: string, cycleId: string): 
   // Fetch zone config
   const zone = await prisma.zone.findUnique({
     where: { id: zoneId },
-    select: { maxPricePerPlate: true, preferredCuisines: true },
+    select: {
+      maxPricePerPlate: true,
+      preferredCuisines: true,
+      optWeightQuality: true,
+      optWeightFreshness: true,
+      optWeightVariety: true,
+      optWeightCost: true,
+      optWeightWaste: true,
+    },
   });
 
   // Fetch available inventory in the zone (cap at 50 items)
@@ -130,9 +142,25 @@ export async function generateDishSuggestions(zoneId: string, cycleId: string): 
     _count: { rating: true },
   });
 
+  // Get available equipment from zone restaurants
+  const restaurants = await prisma.restaurant.findMany({
+    where: { zoneId },
+    select: { equipmentTags: true },
+  });
+  const zoneEquipment = new Set<string>();
+  for (const r of restaurants) {
+    const tags = r.equipmentTags as string[];
+    if (Array.isArray(tags)) {
+      for (const tag of tags) zoneEquipment.add(tag.toLowerCase());
+    }
+  }
+
   // Get seasonal ingredients for current month
   const currentMonth = new Date().getMonth();
   const seasonalItems = SEASONAL_INGREDIENTS[currentMonth] || [];
+
+  // Get optimization weights context
+  const weights = zone ? getZoneWeights(zone) : DEFAULT_OPTIMIZATION_WEIGHTS;
 
   // Build enhanced prompt
   const inventoryText = inventory
@@ -163,6 +191,12 @@ export async function generateDishSuggestions(zoneId: string, cycleId: string): 
     ? `\nSeasonal ingredients this month: ${seasonalItems.join(", ")}. Prefer these when available in inventory.`
     : "";
 
+  const equipmentText = zoneEquipment.size > 0
+    ? `\nAvailable equipment in zone restaurants: ${[...zoneEquipment].join(", ")}. Only suggest dishes that can be made with this equipment.`
+    : "";
+
+  const weightsText = `\nOptimization priorities: Quality=${weights.quality}, Freshness=${weights.freshness}, Variety=${weights.variety}, Cost=${weights.cost}, Waste=${weights.waste}. Prioritize accordingly.`;
+
   const userMessage = `Here is the available inventory from local suppliers in this zone:
 
 ${inventoryText}
@@ -171,6 +205,8 @@ ${budgetText}
 ${cuisineText}
 ${dietaryText}
 ${seasonalText}
+${equipmentText}
+${weightsText}
 
 Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
 
@@ -191,15 +227,23 @@ Please suggest 3-5 creative dishes that restaurants could prepare as today's "Di
     throw new Error("AI did not return structured dish suggestions");
   }
 
-  let { dishes } = toolUse.input as { dishes: DishSuggestion[] };
+  let { dishes } = toolUse.input as { dishes: (DishSuggestion & { equipmentRequired?: string[] })[] };
 
   // Post-generation filter: discard dishes above maxPricePerPlate
   if (zone?.maxPricePerPlate) {
     dishes = dishes.filter((d) => d.estimatedCost <= zone.maxPricePerPlate!);
   }
 
+  // Equipment filtering: exclude dishes needing equipment no zone restaurant has
+  if (zoneEquipment.size > 0) {
+    dishes = dishes.filter((d) => {
+      const required = d.equipmentRequired ?? [];
+      return required.every((eq) => zoneEquipment.has(eq.toLowerCase()));
+    });
+  }
+
   if (dishes.length === 0) {
-    throw new Error("No dishes within budget after filtering");
+    throw new Error("No dishes within budget/equipment constraints after filtering");
   }
 
   // Save dishes to database
@@ -214,6 +258,7 @@ Please suggest 3-5 creative dishes that restaurants could prepare as today's "Di
         recipeSpec: dish.recipeSpec as any,
         voteCount: 0,
         aiPromptUsed: userMessage.substring(0, 500),
+        equipmentRequired: dish.equipmentRequired ?? [],
         ingredients: {
           create: dish.ingredients.map((ing) => ({
             name: ing.name,
@@ -226,6 +271,9 @@ Please suggest 3-5 creative dishes that restaurants could prepare as today's "Di
       },
     });
   }
+
+  // Compute and store optimization scores
+  await computeDishOptimizationScores(cycleId, zoneId);
 
   return dishes;
 }

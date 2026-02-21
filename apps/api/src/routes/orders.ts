@@ -7,6 +7,9 @@ import { AppError } from "../middleware/error-handler";
 import { getIO } from "../socket/handlers";
 import { getStripe } from "../lib/stripe";
 import { notify } from "../services/notifications";
+import { getSubscriptionLimits } from "../services/subscription";
+import { recordPreferenceSignal } from "../services/personalization";
+import { addLoyaltyPoints, updateStreak } from "../services/gamification";
 
 export const orderRouter = Router();
 
@@ -14,6 +17,22 @@ orderRouter.post("/", authenticate, requireVerified, validate(createOrderSchema)
   try {
     const { dailyCycleId, restaurantId, quantity, fulfillmentType } = req.body;
     const userId = req.user!.userId;
+
+    // Check subscription tier maxOrdersPerDay limit
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { subscriptionTier: true },
+    });
+    const limits = getSubscriptionLimits(user?.subscriptionTier ?? "FREE");
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayOrderCount = await prisma.order.count({
+      where: { userId, createdAt: { gte: todayStart }, status: { not: "CANCELLED" } },
+    });
+    if (todayOrderCount >= limits.maxOrdersPerDay) {
+      throw new AppError(`Daily order limit reached (${limits.maxOrdersPerDay}). Upgrade your subscription for more.`, 429);
+    }
 
     // Verify cycle is in ORDERING status
     const cycle = await prisma.dailyCycle.findUnique({
@@ -46,8 +65,21 @@ orderRouter.post("/", authenticate, requireVerified, validate(createOrderSchema)
           },
         },
       },
-      include: { items: true },
+      include: { items: { include: { dish: { select: { name: true, cuisine: true } } } } },
     });
+
+    // Record preference signal
+    const dishName = order.items[0]?.dish?.name;
+    const cuisine = order.items[0]?.dish?.cuisine;
+    recordPreferenceSignal(userId, {
+      signalType: "ORDER",
+      dishName,
+      cuisine,
+    }).catch(() => {});
+
+    // Gamification: loyalty points + streak
+    addLoyaltyPoints(userId, 10, "order").catch(() => {});
+    updateStreak(userId).catch(() => {});
 
     // Notify user of order creation
     notify({

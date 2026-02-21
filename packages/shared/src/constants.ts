@@ -70,6 +70,95 @@ export const BADGES = {
   community_contributor: { name: "Community Star", description: "Created 10 community posts" },
 } as const;
 
+// --- v2.0: Extended Badges ---
+export const BADGES_V2 = {
+  ...BADGES,
+  five_day_streak: { name: "On Fire", description: "5-day activity streak" },
+  quality_scorer: { name: "Quality Judge", description: "Submitted 10 quality scores" },
+  top_voter: { name: "Top Voter", description: "Voted in 20 cycles" },
+  premium_member: { name: "Premium Member", description: "Subscribed to Plus or Premium" },
+  variety_explorer: { name: "Variety Explorer", description: "Voted for 10 different cuisines" },
+} as const;
+
+// --- v2.0: Optimization Weights ---
+export const DEFAULT_OPTIMIZATION_WEIGHTS = {
+  quality: 0.30,
+  freshness: 0.25,
+  variety: 0.20,
+  cost: 0.15,
+  waste: 0.10,
+} as const;
+
+// --- v2.0: Subscription Tiers ---
+export const SUBSCRIPTION_TIERS = {
+  FREE: {
+    votesPerCycle: 1,
+    maxOrdersPerDay: 2,
+    features: ["basic_voting", "order_history"],
+    priceMonthly: 0,
+  },
+  PLUS: {
+    votesPerCycle: 3,
+    maxOrdersPerDay: 5,
+    features: ["basic_voting", "order_history", "quality_scoring", "achievements", "priority_ordering"],
+    priceMonthly: 9.99,
+  },
+  PREMIUM: {
+    votesPerCycle: 5,
+    maxOrdersPerDay: 10,
+    features: ["basic_voting", "order_history", "quality_scoring", "achievements", "priority_ordering", "personalized_ranking", "analytics_access", "early_access"],
+    priceMonthly: 19.99,
+  },
+} as const;
+
+// --- v2.0: Partner Tiers ---
+export const PARTNER_TIERS = {
+  STANDARD: { commissionRate: 0.10, label: "Standard" },
+  SILVER: { commissionRate: 0.08, label: "Silver" },
+  GOLD: { commissionRate: 0.06, label: "Gold" },
+  PLATINUM: { commissionRate: 0.04, label: "Platinum" },
+} as const;
+
+// --- v2.0: Quality Dimensions ---
+export const QUALITY_DIMENSIONS = ["taste", "freshness", "presentation", "portion"] as const;
+
+// --- v2.0: Equipment Tags ---
+export const EQUIPMENT_TAGS = [
+  "oven",
+  "grill",
+  "fryer",
+  "steamer",
+  "wok",
+  "tandoor",
+  "smoker",
+  "pizza_oven",
+  "sous_vide",
+  "mixer",
+  "blast_chiller",
+] as const;
+
+// --- v2.0: Activity Levels ---
+export const ACTIVITY_LEVELS = {
+  LOW: {
+    votingHours: 8,
+    biddingHours: 3,
+    sourcingHours: 4,
+    label: "Low Activity",
+  },
+  MEDIUM: {
+    votingHours: 6,
+    biddingHours: 2,
+    sourcingHours: 3,
+    label: "Medium Activity",
+  },
+  HIGH: {
+    votingHours: 4,
+    biddingHours: 1,
+    sourcingHours: 2,
+    label: "High Activity",
+  },
+} as const;
+
 // --- Seasonal Ingredients (month-indexed, 0 = January) ---
 export const SEASONAL_INGREDIENTS: string[][] = [
   // January

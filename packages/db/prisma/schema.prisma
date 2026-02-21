@@ -18,35 +18,49 @@ enum UserRole {
   ADMIN
 }
 
+enum SubscriptionTier {
+  FREE
+  PLUS
+  PREMIUM
+}
+
 model User {
-  id                 String   @id @default(uuid())
-  email              String   @unique
+  id                 String           @id @default(uuid())
+  email              String           @unique
   name               String
-  role               UserRole @default(CONSUMER)
+  role               UserRole         @default(CONSUMER)
   passwordHash       String?
-  googleId           String?  @unique
+  googleId           String?          @unique
   avatarUrl          String?
-  emailVerified      Boolean  @default(false)
+  emailVerified      Boolean          @default(false)
   phoneNumber        String?
-  dietaryPreferences Json     @default("[]")
-  bio                String?  @db.Text
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  dietaryPreferences Json             @default("[]")
+  bio                String?          @db.Text
+  subscriptionTier   SubscriptionTier @default(FREE)
+  loyaltyPoints      Int              @default(0)
+  streak             Int              @default(0)
+  lastActiveDate     DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   // Relations
-  votes             Vote[]
-  orders            Order[]
-  restaurant        Restaurant?
-  supplier          Supplier?
-  zoneMemberships   ZoneMembership[]
-  reviews           Review[]
-  notifications     Notification[]
-  verificationCodes VerificationCode[]
-  reviewReplies     ReviewReply[]
-  reviewVotes       ReviewVote[]
-  zonePosts         ZonePost[]
-  postComments      PostComment[]
-  postLikes         PostLike[]
+  votes               Vote[]
+  orders              Order[]
+  restaurant          Restaurant?
+  supplier            Supplier?
+  zoneMemberships     ZoneMembership[]
+  reviews             Review[]
+  notifications       Notification[]
+  verificationCodes   VerificationCode[]
+  reviewReplies       ReviewReply[]
+  reviewVotes         ReviewVote[]
+  zonePosts           ZonePost[]
+  postComments        PostComment[]
+  postLikes           PostLike[]
+  subscription        Subscription?
+  qualityScores       QualityScore[]
+  achievements        Achievement[]
+  preferenceSignals   UserPreferenceSignal[]
 
   @@map("users")
 }
@@ -75,23 +89,112 @@ model VerificationCode {
 }
 
 // ============================================
+// Subscriptions
+// ============================================
+
+model Subscription {
+  id                    String           @id @default(uuid())
+  userId                String           @unique
+  tier                  SubscriptionTier
+  stripeSubscriptionId  String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ============================================
+// Quality Scoring
+// ============================================
+
+model QualityScore {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  userId         String
+  restaurantId   String
+  dailyCycleId   String
+  taste          Int
+  freshness      Int
+  presentation   Int
+  portion        Int
+  overall        Float
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dailyCycle DailyCycle @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, createdAt])
+  @@map("quality_scores")
+}
+
+// ============================================
+// Achievements
+// ============================================
+
+model Achievement {
+  id       String   @id @default(uuid())
+  userId   String
+  badge    String
+  earnedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badge])
+  @@map("achievements")
+}
+
+// ============================================
+// User Preference Signals
+// ============================================
+
+model UserPreferenceSignal {
+  id         String   @id @default(uuid())
+  userId     String
+  signalType String   // VOTE, ORDER, VIEW, SKIP
+  dishName   String?
+  cuisine    String?
+  tags       Json     @default("[]")
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_preference_signals")
+}
+
+// ============================================
 // Geography
 // ============================================
 
 model Zone {
-  id               String   @id @default(uuid())
-  name             String
-  slug             String   @unique
-  city             String
-  state            String
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String   @unique
+  city                 String
+  state                String
   // PostGIS boundary stored as GeoJSON string (use raw SQL for spatial queries)
-  boundaryGeoJson  String?  @db.Text
-  isActive         Boolean  @default(true)
-  dailyCycleConfig Json     @default("{}")
-  maxPricePerPlate Float?
-  preferredCuisines Json    @default("[]")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  boundaryGeoJson      String?  @db.Text
+  isActive             Boolean  @default(true)
+  dailyCycleConfig     Json     @default("{}")
+  maxPricePerPlate     Float?
+  preferredCuisines    Json     @default("[]")
+  optWeightQuality     Float?
+  optWeightFreshness   Float?
+  optWeightVariety     Float?
+  optWeightCost        Float?
+  optWeightWaste       Float?
+  activityLevel        String?
+  dynamicTimingConfig  Json?    @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   // Relations
   memberships  ZoneMembership[]
@@ -131,14 +234,24 @@ enum CycleStatus {
 }
 
 model DailyCycle {
-  id            String      @id @default(uuid())
-  zoneId        String
-  date          DateTime    @db.Date
-  status        CycleStatus @default(SUGGESTING)
-  winningDishId String?
-  winningBidId  String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                 String      @id @default(uuid())
+  zoneId             String
+  date               DateTime    @db.Date
+  status             CycleStatus @default(SUGGESTING)
+  winningDishId      String?
+  winningBidId       String?
+  actualVotingStart  DateTime?
+  actualVotingEnd    DateTime?
+  actualBiddingEnd   DateTime?
+  actualSourcingEnd  DateTime?
+  actualOrderingStart DateTime?
+  actualOrderingEnd  DateTime?
+  totalRevenue       Float?
+  totalOrders        Int?
+  wastePercentage    Float?
+  avgQualityScore    Float?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   // Relations
   zone           Zone            @relation(fields: [zoneId], references: [id])
@@ -147,6 +260,7 @@ model DailyCycle {
   bids           Bid[]
   purchaseOrders PurchaseOrder[]
   orders         Order[]
+  qualityScores  QualityScore[]
 
   @@unique([zoneId, date])
   @@map("daily_cycles")
@@ -157,17 +271,23 @@ model DailyCycle {
 // ============================================
 
 model Dish {
-  id            String   @id @default(uuid())
-  dailyCycleId  String
-  name          String
-  description   String   @db.Text
-  cuisine       String
-  imageUrl      String?
-  recipeSpec    Json     @default("{}")
-  estimatedCost Float
-  voteCount     Int      @default(0)
-  aiPromptUsed  String?  @db.Text
-  createdAt     DateTime @default(now())
+  id                String   @id @default(uuid())
+  dailyCycleId      String
+  name              String
+  description       String   @db.Text
+  cuisine           String
+  imageUrl          String?
+  recipeSpec        Json     @default("{}")
+  estimatedCost     Float
+  voteCount         Int      @default(0)
+  aiPromptUsed      String?  @db.Text
+  qualityPrediction Float?
+  freshnessScore    Float?
+  varietyScore       Float?
+  wasteRisk         Float?
+  optimizationScore Float?
+  equipmentRequired Json     @default("[]")
+  createdAt         DateTime @default(now())
 
   // Relations
   dailyCycle  DailyCycle   @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
@@ -224,18 +344,22 @@ model Vote {
 // ============================================
 
 model Restaurant {
-  id          String  @id @default(uuid())
-  ownerId     String  @unique
-  name        String
-  address     String
-  latitude    Float?
-  longitude   Float?
-  rating      Float   @default(0)
-  capacity    Int
-  description String? @db.Text
-  imageUrl    String?
-  isVerified  Boolean @default(false)
-  zoneId      String
+  id                    String  @id @default(uuid())
+  ownerId               String  @unique
+  name                  String
+  address               String
+  latitude              Float?
+  longitude             Float?
+  rating                Float   @default(0)
+  capacity              Int
+  description           String? @db.Text
+  imageUrl              String?
+  isVerified            Boolean @default(false)
+  zoneId                String
+  equipmentTags         Json    @default("[]")
+  maxConcurrentOrders   Int?
+  partnerTier           String?
+  commissionRate        Float?
 
   // Enrollment fields
   ownerFullName          String?
@@ -257,11 +381,12 @@ model Restaurant {
   updatedAt DateTime @updatedAt
 
   // Relations
-  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  zone    Zone     @relation(fields: [zoneId], references: [id])
-  bids    Bid[]
-  orders  Order[]
-  reviews Review[]
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  zone          Zone           @relation(fields: [zoneId], references: [id])
+  bids          Bid[]
+  orders        Order[]
+  reviews       Review[]
+  qualityScores QualityScore[]
 
   @@map("restaurants")
 }
@@ -299,19 +424,22 @@ model Bid {
 // ============================================
 
 model Supplier {
-  id              String  @id @default(uuid())
-  ownerId         String  @unique
-  businessName    String
-  address         String
-  latitude        Float?
-  longitude       Float?
-  certifications  Json    @default("[]")
-  rating          Float   @default(0)
-  isVerified      Boolean @default(false)
-  zoneId          String
-  onTimeRate      Float   @default(0)
-  qualityScore    Float   @default(0)
-  fulfillmentRate Float   @default(0)
+  id                 String  @id @default(uuid())
+  ownerId            String  @unique
+  businessName       String
+  address            String
+  latitude           Float?
+  longitude          Float?
+  certifications     Json    @default("[]")
+  rating             Float   @default(0)
+  isVerified         Boolean @default(false)
+  zoneId             String
+  onTimeRate         Float   @default(0)
+  qualityScore       Float   @default(0)
+  fulfillmentRate    Float   @default(0)
+  maxDeliveryRadius  Float?
+  temperatureControl Boolean @default(false)
+  minOrderValue      Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -336,6 +464,12 @@ model SupplierInventory {
   harvestDate       DateTime?
   isOrganic         Boolean   @default(false)
   expiresAt         DateTime?
+  freshnessWindow   Int?
+  storageType       String?
+  minimumOrderQty   Float?
+  bulkDiscountQty   Float?
+  bulkDiscountRate  Float?
+  qualityGrade      String?
   updatedAt         DateTime  @updatedAt
 
   // Relations
@@ -452,11 +586,12 @@ model Order {
   updatedAt       DateTime        @updatedAt
 
   // Relations
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dailyCycle DailyCycle  @relation(fields: [dailyCycleId], references: [id])
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id])
-  items      OrderItem[]
-  review     Review?
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCycle   DailyCycle    @relation(fields: [dailyCycleId], references: [id])
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
+  items        OrderItem[]
+  review       Review?
+  qualityScore QualityScore?
 
   @@map("orders")
 }

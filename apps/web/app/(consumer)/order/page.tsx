@@ -127,9 +127,14 @@ export default function OrderPage() {
           <div className="mb-4 text-4xl">&#10003;</div>
           <h2 className="mb-2 text-2xl font-bold">Order Placed!</h2>
           <p className="mb-6 text-muted-foreground">Your order has been confirmed. Track it on your orders page.</p>
-          <Link href="/orders" className="rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            View My Orders
-          </Link>
+          <div className="flex flex-col items-center gap-3">
+            <Link href="/orders" className="rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              View My Orders
+            </Link>
+            <Link href="/quality" className="text-sm text-muted-foreground hover:text-foreground">
+              Rate a past order &rarr;
+            </Link>
+          </div>
         </div>
       </div>
     );

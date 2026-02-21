@@ -60,6 +60,12 @@ export enum DeliveryStatus {
   FAILED = "FAILED",
 }
 
+export enum SubscriptionTier {
+  FREE = "FREE",
+  PLUS = "PLUS",
+  PREMIUM = "PREMIUM",
+}
+
 // --- User ---
 
 export interface User {
@@ -72,6 +78,10 @@ export interface User {
   phoneNumber?: string;
   dietaryPreferences: string[];
   bio?: string;
+  subscriptionTier: SubscriptionTier;
+  loyaltyPoints: number;
+  streak: number;
+  lastActiveDate?: Date;
   createdAt: Date;
 }
 
@@ -85,6 +95,8 @@ export interface UserProfile {
   badges: string[];
   reviewCount: number;
   postCount: number;
+  loyaltyPoints: number;
+  streak: number;
   createdAt: Date;
 }
 
@@ -135,6 +147,12 @@ export interface Dish {
   estimatedCost: number;
   voteCount: number;
   aiPromptUsed?: string;
+  qualityPrediction?: number;
+  freshnessScore?: number;
+  varietyScore?: number;
+  wasteRisk?: number;
+  optimizationScore?: number;
+  equipmentRequired: string[];
 }
 
 export interface RecipeSpec {
@@ -181,6 +199,10 @@ export interface Restaurant {
   imageUrl?: string;
   isVerified: boolean;
   zoneId: string;
+  equipmentTags: string[];
+  maxConcurrentOrders?: number;
+  partnerTier?: string;
+  commissionRate?: number;
   businessLicenseNumber?: string;
   taxId?: string;
   phone?: string;
@@ -226,6 +248,9 @@ export interface Supplier {
   onTimeRate: number;
   qualityScore: number;
   fulfillmentRate: number;
+  maxDeliveryRadius?: number;
+  temperatureControl: boolean;
+  minOrderValue?: number;
 }
 
 export interface SupplierMetrics {
@@ -246,6 +271,12 @@ export interface SupplierInventory {
   harvestDate?: Date;
   isOrganic: boolean;
   expiresAt?: Date;
+  freshnessWindow?: number;
+  storageType?: string;
+  minimumOrderQty?: number;
+  bulkDiscountQty?: number;
+  bulkDiscountRate?: number;
+  qualityGrade?: string;
   updatedAt: Date;
 }
 
@@ -443,4 +474,90 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+// --- v2.0: Subscription ---
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  tier: SubscriptionTier;
+  stripeSubscriptionId?: string;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd: boolean;
+}
+
+// --- v2.0: Quality ---
+
+export interface QualityScore {
+  id: string;
+  orderId: string;
+  userId: string;
+  restaurantId: string;
+  dailyCycleId: string;
+  taste: number;
+  freshness: number;
+  presentation: number;
+  portion: number;
+  overall: number;
+  comment?: string;
+  createdAt: Date;
+}
+
+export interface QualityAggregation {
+  restaurantId: string;
+  avgTaste: number;
+  avgFreshness: number;
+  avgPresentation: number;
+  avgPortion: number;
+  avgOverall: number;
+  totalScores: number;
+}
+
+// --- v2.0: Optimization ---
+
+export interface OptimizationWeights {
+  quality: number;
+  freshness: number;
+  variety: number;
+  cost: number;
+  waste: number;
+}
+
+export interface DishOptimizationResult {
+  dishId: string;
+  name: string;
+  qualityPrediction: number;
+  freshnessScore: number;
+  varietyScore: number;
+  wasteRisk: number;
+  optimizationScore: number;
+}
+
+// --- v2.0: Personalization ---
+
+export interface UserPreferenceSummary {
+  userId: string;
+  cuisineWeights: Record<string, number>;
+  tagWeights: Record<string, number>;
+  totalSignals: number;
+}
+
+// --- v2.0: Analytics ---
+
+export interface ZoneAnalytics {
+  zoneId: string;
+  totalOrders: number;
+  totalRevenue: number;
+  avgQualityScore: number;
+  wastePercentage: number;
+  activeCycles: number;
+}
+
+export interface RevenueBreakdown {
+  totalRevenue: number;
+  byZone: { zoneId: string; zoneName: string; revenue: number }[];
+  byRestaurant: { restaurantId: string; restaurantName: string; revenue: number }[];
+  subscriptionRevenue: number;
 }

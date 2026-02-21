@@ -18,6 +18,10 @@ import { uploadRouter } from "../../routes/uploads";
 import { feedRouter } from "../../routes/feed";
 import { deliveryRouter } from "../../routes/delivery";
 import { userRouter } from "../../routes/users";
+import { subscriptionRouter } from "../../routes/subscriptions";
+import { qualityRouter } from "../../routes/quality";
+import { analyticsRouter } from "../../routes/analytics";
+import { personalizationRouter } from "../../routes/personalization";
 import { errorHandler } from "../../middleware/error-handler";
 import passport from "passport";
 
@@ -56,6 +60,10 @@ export function createApp() {
   app.use("/api/feed", feedRouter);
   app.use("/api/delivery", deliveryRouter);
   app.use("/api/users", userRouter);
+  app.use("/api/subscriptions", subscriptionRouter);
+  app.use("/api/quality", qualityRouter);
+  app.use("/api/analytics", analyticsRouter);
+  app.use("/api/personalization", personalizationRouter);
 
   // Error handling
   app.use(errorHandler);

@@ -26,6 +26,12 @@ interface DishData {
   cuisine: string;
   voteCount: number;
   estimatedCost: number;
+  optimizationScore?: number;
+  qualityPrediction?: number;
+  freshnessScore?: number;
+  varietyScore?: number;
+  wasteRisk?: number;
+  equipmentRequired?: string[];
 }
 
 interface CycleDetail {
@@ -284,10 +290,35 @@ export default function CyclePage() {
                         <p className="mt-1 text-sm text-muted-foreground">
                           {dish.description}
                         </p>
-                        <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                           <span>{dish.cuisine}</span>
                           <span>~${dish.estimatedCost.toFixed(2)}/plate</span>
+                          {dish.equipmentRequired && dish.equipmentRequired.length > 0 && (
+                            <span className="rounded bg-muted px-1.5 py-0.5">{dish.equipmentRequired.join(", ")}</span>
+                          )}
                         </div>
+                        {dish.optimizationScore != null && (
+                          <div className="mt-2 flex gap-2 text-xs">
+                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700" title="Optimization Score">
+                              Score: {(dish.optimizationScore * 100).toFixed(0)}%
+                            </span>
+                            {dish.qualityPrediction != null && (
+                              <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700" title="Quality Prediction">
+                                Q: {(dish.qualityPrediction * 100).toFixed(0)}%
+                              </span>
+                            )}
+                            {dish.freshnessScore != null && (
+                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700" title="Freshness">
+                                F: {(dish.freshnessScore * 100).toFixed(0)}%
+                              </span>
+                            )}
+                            {dish.wasteRisk != null && (
+                              <span className={`rounded px-1.5 py-0.5 ${dish.wasteRisk > 0.5 ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-600"}`} title="Waste Risk">
+                                W: {(dish.wasteRisk * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold">{dish.voteCount}</div>

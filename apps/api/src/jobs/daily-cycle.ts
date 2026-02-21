@@ -1,9 +1,11 @@
 import cron from "node-cron";
 import { prisma, CycleStatus } from "@dotted/db";
+import { ACTIVITY_LEVELS } from "@dotted/shared";
 import { generateDishSuggestions } from "../ai/dish-generator";
 import { tallyVotes } from "../services/voting";
 import { scoreBidsAndSelectWinner } from "../services/bidding";
 import { optimizeSourcing } from "../ai/supplier-matcher";
+import { checkAndAwardAchievements } from "../services/gamification";
 import { getIO } from "../socket/handlers";
 import { cacheInvalidate } from "../lib/redis";
 import { notify } from "../services/notifications";
@@ -22,7 +24,10 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
     case CycleStatus.VOTING: {
       // Generate dishes via AI then open voting
       await generateDishSuggestions(cycle.zoneId, cycleId);
-      await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "VOTING" } });
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: { status: "VOTING", actualVotingStart: new Date() },
+      });
       emitCycleUpdate(cycleId, "VOTING");
       logger.info({ cycleId }, "Voting opened");
 
@@ -46,7 +51,10 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
     case CycleStatus.BIDDING: {
       // Tally votes, declare winner, open bidding
       const voteResult = await tallyVotes(cycleId);
-      await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "BIDDING" } });
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: { status: "BIDDING", actualVotingEnd: new Date() },
+      });
       emitCycleUpdate(cycleId, "BIDDING");
       logger.info({ cycleId, winningDish: voteResult.winningDishName }, "Bidding opened");
       break;
@@ -55,18 +63,28 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
     case CycleStatus.SOURCING: {
       // Score bids, select winner, start sourcing
       const bidResult = await scoreBidsAndSelectWinner(cycleId);
-      await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "SOURCING" } });
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: { status: "SOURCING", actualBiddingEnd: new Date() },
+      });
       emitCycleUpdate(cycleId, "SOURCING");
       logger.info({ cycleId, restaurant: bidResult.restaurantName }, "Sourcing started");
 
       // Generate purchase orders
       await optimizeSourcing(cycleId);
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: { actualSourcingEnd: new Date() },
+      });
       logger.info({ cycleId }, "Purchase orders created");
       break;
     }
 
     case CycleStatus.ORDERING: {
-      await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "ORDERING" } });
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: { status: "ORDERING", actualOrderingStart: new Date() },
+      });
       emitCycleUpdate(cycleId, "ORDERING");
       logger.info({ cycleId }, "Orders open");
 
@@ -88,9 +106,72 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
     }
 
     case CycleStatus.COMPLETED: {
-      await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "COMPLETED" } });
+      // Compute post-cycle stats
+      const orders = await prisma.order.findMany({
+        where: { dailyCycleId: cycleId, status: { not: "CANCELLED" } },
+        select: { totalPrice: true, userId: true },
+      });
+      const totalRevenue = orders.reduce((s, o) => s + o.totalPrice, 0);
+      const totalOrders = orders.length;
+
+      // Waste percentage: sourced cost vs actual revenue
+      const purchaseOrders = await prisma.purchaseOrder.findMany({
+        where: { dailyCycleId: cycleId },
+        select: { totalCost: true },
+      });
+      const sourcedCost = purchaseOrders.reduce((s, po) => s + po.totalCost, 0);
+      const wastePercentage = sourcedCost > 0
+        ? Math.max(0, ((sourcedCost - totalRevenue) / sourcedCost) * 100)
+        : 0;
+
+      // Average quality score for this cycle
+      const qualityAgg = await prisma.qualityScore.aggregate({
+        where: { dailyCycleId: cycleId },
+        _avg: { overall: true },
+      });
+
+      await prisma.dailyCycle.update({
+        where: { id: cycleId },
+        data: {
+          status: "COMPLETED",
+          actualOrderingEnd: new Date(),
+          totalRevenue,
+          totalOrders,
+          wastePercentage,
+          avgQualityScore: qualityAgg._avg.overall,
+        },
+      });
       emitCycleUpdate(cycleId, "COMPLETED");
-      logger.info({ cycleId }, "Cycle completed");
+      logger.info({ cycleId, totalRevenue, totalOrders }, "Cycle completed");
+
+      // Trigger achievements for participants
+      const participantIds = new Set(orders.map((o) => o.userId));
+      const voters = await prisma.vote.findMany({
+        where: { dailyCycleId: cycleId },
+        select: { userId: true },
+      });
+      for (const v of voters) participantIds.add(v.userId);
+
+      for (const userId of participantIds) {
+        checkAndAwardAchievements(userId).catch(() => {});
+      }
+
+      // Update zone activity level based on recent performance
+      const recentCycles = await prisma.dailyCycle.findMany({
+        where: { zoneId: cycle.zoneId, status: "COMPLETED" },
+        orderBy: { date: "desc" },
+        take: 7,
+        select: { totalOrders: true },
+      });
+      const avgOrders = recentCycles.length > 0
+        ? recentCycles.reduce((s, c) => s + (c.totalOrders ?? 0), 0) / recentCycles.length
+        : 0;
+      const newActivityLevel = avgOrders > 50 ? "HIGH" : avgOrders > 20 ? "MEDIUM" : "LOW";
+      await prisma.zone.update({
+        where: { id: cycle.zoneId },
+        data: { activityLevel: newActivityLevel },
+      });
+
       break;
     }
 
@@ -137,6 +218,11 @@ export async function runDailyCycleForAllZones(targetStatus: CycleStatus) {
       logger.error({ zone: zone.name, targetStatus, err }, "Error in cycle phase");
     }
   }
+}
+
+function getTimingForActivityLevel(activityLevel?: string | null) {
+  const level = (activityLevel ?? "MEDIUM") as keyof typeof ACTIVITY_LEVELS;
+  return ACTIVITY_LEVELS[level] ?? ACTIVITY_LEVELS.MEDIUM;
 }
 
 export function initCronJobs() {

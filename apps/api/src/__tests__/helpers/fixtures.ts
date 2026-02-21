@@ -54,6 +54,7 @@ export async function createTestDishes(cycleId: string, count: number = 4) {
         estimatedCost: 10 + i * 2,
         voteCount: 0,
         recipeSpec: { servings: 4, prepTime: 15, cookTime: 30, instructions: ["Step 1"], tags: ["test"] },
+        equipmentRequired: [],
         ingredients: {
           create: [
             { name: `Ingredient ${n}A`, quantity: 2, unit: "kg", category: "Produce", substitutes: [] },
@@ -68,7 +69,7 @@ export async function createTestDishes(cycleId: string, count: number = 4) {
   return dishes;
 }
 
-export async function createTestRestaurant(ownerId: string, zoneId: string, overrides: Partial<{ name: string; rating: number; capacity: number }> = {}) {
+export async function createTestRestaurant(ownerId: string, zoneId: string, overrides: Partial<{ name: string; rating: number; capacity: number; equipmentTags: string[]; maxConcurrentOrders: number; partnerTier: string; commissionRate: number }> = {}) {
   const n = inc();
   return prisma.restaurant.create({
     data: {
@@ -78,6 +79,10 @@ export async function createTestRestaurant(ownerId: string, zoneId: string, over
       rating: overrides.rating ?? 4.0,
       capacity: overrides.capacity ?? 100,
       zoneId,
+      equipmentTags: overrides.equipmentTags ?? [],
+      maxConcurrentOrders: overrides.maxConcurrentOrders,
+      partnerTier: overrides.partnerTier,
+      commissionRate: overrides.commissionRate,
     },
   });
 }
@@ -175,6 +180,65 @@ export async function createTestVerificationCode(
       code: overrides.code ?? "123456",
       type,
       expiresAt: overrides.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000),
+    },
+  });
+}
+
+// --- v2.0 Fixtures ---
+
+export async function createTestSubscription(
+  userId: string,
+  tier: "PLUS" | "PREMIUM" = "PLUS"
+) {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { subscriptionTier: tier },
+  });
+  return prisma.subscription.create({
+    data: {
+      userId,
+      tier,
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  });
+}
+
+export async function createTestQualityScore(
+  orderId: string,
+  userId: string,
+  restaurantId: string,
+  dailyCycleId: string,
+  overrides: Partial<{ taste: number; freshness: number; presentation: number; portion: number }> = {}
+) {
+  const taste = overrides.taste ?? 4;
+  const freshness = overrides.freshness ?? 4;
+  const presentation = overrides.presentation ?? 4;
+  const portion = overrides.portion ?? 4;
+  const overall = (taste + freshness + presentation + portion) / 4;
+
+  return prisma.qualityScore.create({
+    data: { orderId, userId, restaurantId, dailyCycleId, taste, freshness, presentation, portion, overall },
+  });
+}
+
+export async function createTestAchievement(userId: string, badge: string) {
+  return prisma.achievement.create({
+    data: { userId, badge },
+  });
+}
+
+export async function createTestPreferenceSignal(
+  userId: string,
+  overrides: Partial<{ signalType: string; dishName: string; cuisine: string; tags: string[] }> = {}
+) {
+  return prisma.userPreferenceSignal.create({
+    data: {
+      userId,
+      signalType: overrides.signalType ?? "VOTE",
+      dishName: overrides.dishName,
+      cuisine: overrides.cuisine,
+      tags: overrides.tags ?? [],
     },
   });
 }

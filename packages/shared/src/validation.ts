@@ -169,6 +169,46 @@ export const joinZoneSchema = z.object({
   zoneId: z.string().uuid(),
 });
 
+// --- v2.0: Quality Score Schema ---
+
+export const submitQualityScoreSchema = z.object({
+  orderId: z.string().uuid(),
+  taste: z.number().int().min(1).max(5),
+  freshness: z.number().int().min(1).max(5),
+  presentation: z.number().int().min(1).max(5),
+  portion: z.number().int().min(1).max(5),
+  comment: z.string().max(1000).optional(),
+});
+
+// --- v2.0: Subscription Schema ---
+
+export const createSubscriptionSchema = z.object({
+  tier: z.enum(["PLUS", "PREMIUM"]),
+});
+
+// --- v2.0: Optimization Weights Schema ---
+
+export const updateOptimizationWeightsSchema = z.object({
+  quality: z.number().min(0).max(1),
+  freshness: z.number().min(0).max(1),
+  variety: z.number().min(0).max(1),
+  cost: z.number().min(0).max(1),
+  waste: z.number().min(0).max(1),
+}).refine(
+  (data) => {
+    const sum = data.quality + data.freshness + data.variety + data.cost + data.waste;
+    return Math.abs(sum - 1.0) < 0.01;
+  },
+  { message: "Weights must sum to 1.0" }
+);
+
+// --- v2.0: Restaurant Capabilities Schema ---
+
+export const updateRestaurantCapabilitiesSchema = z.object({
+  equipmentTags: z.array(z.string().max(50)).max(20).optional(),
+  maxConcurrentOrders: z.number().int().positive().max(1000).optional(),
+});
+
 // --- Type Exports ---
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -182,3 +222,7 @@ export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;
 export type UpdateDeliveryInput = z.infer<typeof updateDeliverySchema>;
 export type UpdateDietaryPreferencesInput = z.infer<typeof updateDietaryPreferencesSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type SubmitQualityScoreInput = z.infer<typeof submitQualityScoreSchema>;
+export type CreateSubscriptionInput = z.infer<typeof createSubscriptionSchema>;
+export type UpdateOptimizationWeightsInput = z.infer<typeof updateOptimizationWeightsSchema>;
+export type UpdateRestaurantCapabilitiesInput = z.infer<typeof updateRestaurantCapabilitiesSchema>;

@@ -38,15 +38,23 @@ export function Header() {
       <Link href="/community" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
         Community
       </Link>
+      <Link href="/quality" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+        Quality
+      </Link>
     </>
   );
 
   const userLinks = user ? (
     <>
       {user.role === "ADMIN" && (
-        <Link href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
-          Dashboard
-        </Link>
+        <>
+          <Link href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+            Dashboard
+          </Link>
+          <Link href="/analytics" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+            Analytics
+          </Link>
+        </>
       )}
       {user.role === "RESTAURANT_OWNER" && (
         <>
@@ -55,6 +63,9 @@ export function Header() {
           </Link>
           <Link href="/restaurant-orders" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
             Orders
+          </Link>
+          <Link href="/restaurant-quality" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+            Quality
           </Link>
         </>
       )}
@@ -71,6 +82,12 @@ export function Header() {
           </Link>
         </>
       )}
+      <Link href="/subscription" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+        Subscription
+      </Link>
+      <Link href="/achievements" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+        Achievements
+      </Link>
       <Link href="/orders" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
         My Orders
       </Link>

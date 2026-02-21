@@ -13,6 +13,12 @@ interface InventoryItem {
   pricePerUnit: number;
   quantityAvailable: number;
   isOrganic: boolean;
+  freshnessWindow?: number;
+  storageType?: string;
+  qualityGrade?: string;
+  minimumOrderQty?: number;
+  bulkDiscountQty?: number;
+  bulkDiscountRate?: number;
 }
 
 export default function InventoryPage() {
@@ -27,6 +33,12 @@ export default function InventoryPage() {
     pricePerUnit: "",
     quantityAvailable: "",
     isOrganic: false,
+    freshnessWindow: "",
+    storageType: "",
+    qualityGrade: "",
+    minimumOrderQty: "",
+    bulkDiscountQty: "",
+    bulkDiscountRate: "",
   });
 
   useEffect(() => {
@@ -49,7 +61,7 @@ export default function InventoryPage() {
     e.preventDefault();
     setError("");
 
-    const item = {
+    const item: Record<string, any> = {
       ingredientName: newItem.ingredientName,
       category: newItem.category,
       unit: newItem.unit,
@@ -57,6 +69,12 @@ export default function InventoryPage() {
       quantityAvailable: parseFloat(newItem.quantityAvailable),
       isOrganic: newItem.isOrganic,
     };
+    if (newItem.freshnessWindow) item.freshnessWindow = parseInt(newItem.freshnessWindow);
+    if (newItem.storageType) item.storageType = newItem.storageType;
+    if (newItem.qualityGrade) item.qualityGrade = newItem.qualityGrade;
+    if (newItem.minimumOrderQty) item.minimumOrderQty = parseFloat(newItem.minimumOrderQty);
+    if (newItem.bulkDiscountQty) item.bulkDiscountQty = parseFloat(newItem.bulkDiscountQty);
+    if (newItem.bulkDiscountRate) item.bulkDiscountRate = parseFloat(newItem.bulkDiscountRate);
 
     if (token) {
       try {
@@ -81,6 +99,12 @@ export default function InventoryPage() {
       pricePerUnit: "",
       quantityAvailable: "",
       isOrganic: false,
+      freshnessWindow: "",
+      storageType: "",
+      qualityGrade: "",
+      minimumOrderQty: "",
+      bulkDiscountQty: "",
+      bulkDiscountRate: "",
     });
   }
 
@@ -246,6 +270,111 @@ export default function InventoryPage() {
                 </label>
               </div>
 
+              {/* Enhanced v2 Fields */}
+              <div className="border-t pt-4">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Advanced Options</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="freshnessWindow" className="mb-1 block text-sm font-medium">
+                      Freshness (hours)
+                    </label>
+                    <input
+                      id="freshnessWindow"
+                      name="freshnessWindow"
+                      type="number"
+                      min="1"
+                      value={newItem.freshnessWindow}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      placeholder="48"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="storageType" className="mb-1 block text-sm font-medium">
+                      Storage Type
+                    </label>
+                    <select
+                      id="storageType"
+                      name="storageType"
+                      value={newItem.storageType}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">None</option>
+                      <option value="ambient">Ambient</option>
+                      <option value="refrigerated">Refrigerated</option>
+                      <option value="frozen">Frozen</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="qualityGrade" className="mb-1 block text-sm font-medium">
+                      Quality Grade
+                    </label>
+                    <select
+                      id="qualityGrade"
+                      name="qualityGrade"
+                      value={newItem.qualityGrade}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Not graded</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="minimumOrderQty" className="mb-1 block text-sm font-medium">
+                      Min Order Qty
+                    </label>
+                    <input
+                      id="minimumOrderQty"
+                      name="minimumOrderQty"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={newItem.minimumOrderQty}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="bulkDiscountQty" className="mb-1 block text-sm font-medium">
+                      Bulk Discount Qty
+                    </label>
+                    <input
+                      id="bulkDiscountQty"
+                      name="bulkDiscountQty"
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={newItem.bulkDiscountQty}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      placeholder="50"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="bulkDiscountRate" className="mb-1 block text-sm font-medium">
+                      Bulk Discount %
+                    </label>
+                    <input
+                      id="bulkDiscountRate"
+                      name="bulkDiscountRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="1"
+                      value={newItem.bulkDiscountRate}
+                      onChange={handleChange}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      placeholder="0.15"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -284,6 +413,20 @@ export default function InventoryPage() {
                       <div className="mt-1 text-sm text-muted-foreground">
                         {item.quantityAvailable} {item.unit} @ ${item.pricePerUnit.toFixed(2)}/{item.unit}
                         <span className="ml-2 text-xs">({item.category})</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.freshnessWindow && (
+                          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">{item.freshnessWindow}h fresh</span>
+                        )}
+                        {item.storageType && (
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{item.storageType}</span>
+                        )}
+                        {item.qualityGrade && (
+                          <span className="rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-700">Grade {item.qualityGrade}</span>
+                        )}
+                        {item.bulkDiscountRate && item.bulkDiscountQty && (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">{(item.bulkDiscountRate * 100).toFixed(0)}% off {item.bulkDiscountQty}+</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

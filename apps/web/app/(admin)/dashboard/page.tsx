@@ -134,8 +134,18 @@ export default function AdminDashboard() {
     <div className="min-h-screen">
       <Header />
       <div className="container py-8">
-        <h1 className="mb-2 text-3xl font-bold">Admin Dashboard</h1>
-        <p className="mb-6 text-muted-foreground">Platform overview and management.</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="mb-2 text-3xl font-bold">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Platform overview and management.</p>
+          </div>
+          <a
+            href="/analytics"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Advanced Analytics
+          </a>
+        </div>
 
         {/* Tabs */}
         <div className="mb-8 flex gap-1 rounded-lg border p-1">

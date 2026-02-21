@@ -1,5 +1,5 @@
 import { prisma } from "@dotted/db";
-import { BID_SCORE_WEIGHTS } from "@dotted/shared";
+import { BID_SCORE_WEIGHTS, PARTNER_TIERS } from "@dotted/shared";
 
 interface BidScoreInput {
   pricePerPlate: number;
@@ -7,6 +7,7 @@ interface BidScoreInput {
   maxCapacity: number;
   prepTime: number;
   requiredCapacity: number;
+  partnerTier?: string | null;
 }
 
 function computeBidScore(input: BidScoreInput, allBids: BidScoreInput[]): number {
@@ -31,12 +32,24 @@ function computeBidScore(input: BidScoreInput, allBids: BidScoreInput[]): number
   const prepRange = maxPrep - minPrep || 1;
   const prepScore = 1 - (input.prepTime - minPrep) / prepRange;
 
-  return (
+  let score =
     BID_SCORE_WEIGHTS.price * priceScore +
     BID_SCORE_WEIGHTS.rating * ratingScore +
     BID_SCORE_WEIGHTS.capacity * capacityScore +
-    BID_SCORE_WEIGHTS.prepTime * prepScore
-  );
+    BID_SCORE_WEIGHTS.prepTime * prepScore;
+
+  // Partner tier priority tiebreaker (small bonus)
+  if (input.partnerTier) {
+    const tierBonus: Record<string, number> = {
+      PLATINUM: 0.04,
+      GOLD: 0.03,
+      SILVER: 0.02,
+      STANDARD: 0,
+    };
+    score += tierBonus[input.partnerTier] ?? 0;
+  }
+
+  return score;
 }
 
 export async function scoreBidsAndSelectWinner(cycleId: string): Promise<{
@@ -46,28 +59,64 @@ export async function scoreBidsAndSelectWinner(cycleId: string): Promise<{
 }> {
   const bids = await prisma.bid.findMany({
     where: { dailyCycleId: cycleId, status: "PENDING" },
-    include: { restaurant: true },
+    include: { restaurant: true, dish: { select: { equipmentRequired: true } } },
   });
 
   if (bids.length === 0) {
     throw new Error("No bids submitted for this cycle");
   }
 
+  // Equipment capability check: filter out bids from restaurants lacking required equipment
+  const winningDish = bids[0].dish;
+  const requiredEquipment = (winningDish.equipmentRequired as string[]) ?? [];
+
+  let eligibleBids = bids;
+  if (requiredEquipment.length > 0) {
+    eligibleBids = bids.filter((bid) => {
+      const restaurantEquipment = (bid.restaurant.equipmentTags as string[]) ?? [];
+      const restaurantSet = new Set(restaurantEquipment.map((e) => e.toLowerCase()));
+      return requiredEquipment.every((eq) => restaurantSet.has(eq.toLowerCase()));
+    });
+
+    // If no restaurant has the equipment, fall back to all bids
+    if (eligibleBids.length === 0) {
+      eligibleBids = bids;
+    }
+  }
+
+  // maxConcurrentOrders cap: filter out restaurants at capacity
+  const filteredBids = [];
+  for (const bid of eligibleBids) {
+    if (bid.restaurant.maxConcurrentOrders != null) {
+      const activeOrders = await prisma.order.count({
+        where: {
+          restaurantId: bid.restaurantId,
+          status: { in: ["PENDING", "CONFIRMED", "READY"] },
+        },
+      });
+      if (activeOrders >= bid.restaurant.maxConcurrentOrders) continue;
+    }
+    filteredBids.push(bid);
+  }
+
+  const finalBids = filteredBids.length > 0 ? filteredBids : eligibleBids;
+
   // Estimate required capacity (from zone membership count)
   const cycle = await prisma.dailyCycle.findUnique({ where: { id: cycleId } });
   const memberCount = await prisma.zoneMembership.count({ where: { zoneId: cycle!.zoneId } });
   const requiredCapacity = Math.ceil(memberCount * 0.3); // assume 30% order rate
 
-  const allBidInputs: BidScoreInput[] = bids.map((b) => ({
+  const allBidInputs: BidScoreInput[] = finalBids.map((b) => ({
     pricePerPlate: b.pricePerPlate,
     restaurantRating: b.restaurant.rating,
     maxCapacity: b.maxCapacity,
     prepTime: b.prepTime,
     requiredCapacity,
+    partnerTier: b.restaurant.partnerTier,
   }));
 
   // Score each bid
-  const scored = bids.map((bid, idx) => ({
+  const scored = finalBids.map((bid, idx) => ({
     bid,
     score: computeBidScore(allBidInputs[idx], allBidInputs),
   }));
@@ -75,17 +124,18 @@ export async function scoreBidsAndSelectWinner(cycleId: string): Promise<{
   scored.sort((a, b) => b.score - a.score);
   const winner = scored[0];
 
-  // Update all bids with scores and statuses
+  // Update all original bids with scores and statuses
   await prisma.$transaction(
-    scored.map(({ bid, score }, idx) =>
-      prisma.bid.update({
+    bids.map((bid) => {
+      const scoredEntry = scored.find((s) => s.bid.id === bid.id);
+      return prisma.bid.update({
         where: { id: bid.id },
         data: {
-          score,
-          status: idx === 0 ? "WON" : "LOST",
+          score: scoredEntry?.score ?? 0,
+          status: bid.id === winner.bid.id ? "WON" : "LOST",
         },
-      })
-    )
+      });
+    })
   );
 
   // Update cycle with winning bid
@@ -99,4 +149,21 @@ export async function scoreBidsAndSelectWinner(cycleId: string): Promise<{
     restaurantName: winner.bid.restaurant.name,
     score: winner.score,
   };
+}
+
+export function getCommissionRate(restaurant: {
+  commissionRate?: number | null;
+  partnerTier?: string | null;
+}): number {
+  // Restaurant-specific override
+  if (restaurant.commissionRate != null) return restaurant.commissionRate;
+
+  // Partner tier rate
+  if (restaurant.partnerTier) {
+    const tier = PARTNER_TIERS[restaurant.partnerTier as keyof typeof PARTNER_TIERS];
+    if (tier) return tier.commissionRate;
+  }
+
+  // Default standard rate
+  return PARTNER_TIERS.STANDARD.commissionRate;
 }
