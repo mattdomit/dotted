@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
+import { prisma } from "@dotted/db";
 import { UserRole } from "@dotted/shared";
 import { createApp } from "../helpers/app";
 import { cleanDatabase } from "../helpers/db";
@@ -76,15 +77,17 @@ describe("Restaurant Routes — /api/restaurants", () => {
       expect(res.status).toBe(400);
     });
 
-    it("should return 403 for non-restaurant-owner role", async () => {
-      const { token: consumerToken } = await createTestUser(UserRole.CONSUMER);
+    it("should auto-upgrade consumer role to RESTAURANT_OWNER on enroll", async () => {
+      const { user: consumer, token: consumerToken } = await createTestUser(UserRole.CONSUMER);
 
       const res = await request(app)
         .post("/api/restaurants/enroll")
         .set(getAuthHeader(consumerToken))
         .send({ ...enrollData, zoneId });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(201);
+      const updated = await prisma.user.findUnique({ where: { id: consumer.id } });
+      expect(updated!.role).toBe(UserRole.RESTAURANT_OWNER);
     });
   });
 

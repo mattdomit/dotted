@@ -202,6 +202,7 @@ model Restaurant {
   zoneId      String
 
   // Enrollment fields
+  ownerFullName          String?
   businessLicenseNumber  String?
   taxId                  String?
   phone                  String?

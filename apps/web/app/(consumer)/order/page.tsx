@@ -182,7 +182,7 @@ export default function OrderPage() {
             <div className="mb-6">
               <label className="mb-2 block text-sm font-medium">Fulfillment Type</label>
               <div className="flex gap-3">
-                {["PICKUP", "DELIVERY", "DINE_IN"].map((type) => (
+                {["PICKUP", "DELIVERY"].map((type) => (
                   <button
                     key={type}
                     type="button"

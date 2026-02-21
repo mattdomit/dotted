@@ -7,6 +7,19 @@ import { AppError } from "../middleware/error-handler";
 
 export const restaurantRouter = Router();
 
+// GET / — list all restaurants (public, for reviews/search)
+restaurantRouter.get("/", async (_req, res, next) => {
+  try {
+    const restaurants = await prisma.restaurant.findMany({
+      select: { id: true, name: true, address: true, rating: true, zoneId: true, imageUrl: true },
+      orderBy: { name: "asc" },
+    });
+    res.json({ success: true, data: restaurants });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /mine — return the authenticated user's restaurant
 restaurantRouter.get("/mine", authenticate, async (req, res, next) => {
   try {
@@ -26,7 +39,6 @@ restaurantRouter.get("/mine", authenticate, async (req, res, next) => {
 restaurantRouter.post(
   "/enroll",
   authenticate,
-  requireRole(UserRole.RESTAURANT_OWNER),
   validate(enrollRestaurantSchema),
   async (req, res, next) => {
     try {
@@ -60,6 +72,14 @@ restaurantRouter.post(
         zoneId,
       } = req.body;
 
+      // Auto-upgrade user role to RESTAURANT_OWNER if they aren't already
+      if (req.user!.role !== UserRole.RESTAURANT_OWNER) {
+        await prisma.user.update({
+          where: { id: req.user!.userId },
+          data: { role: UserRole.RESTAURANT_OWNER },
+        });
+      }
+
       const restaurant = await prisma.restaurant.create({
         data: {
           ownerId: req.user!.userId,
@@ -70,6 +90,7 @@ restaurantRouter.post(
           zoneId,
           businessLicenseNumber,
           taxId,
+          ownerFullName: ownerFullName || null,
           phone,
           email,
           city,

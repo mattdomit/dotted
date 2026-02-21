@@ -16,9 +16,6 @@ export default function SupplierEnrollPage() {
   const [formData, setFormData] = useState({
     businessName: "",
     address: "",
-    city: "",
-    state: "",
-    zipCode: "",
     certifications: [] as string[],
     zoneId: "",
   });
@@ -103,7 +100,7 @@ export default function SupplierEnrollPage() {
 
           <div>
             <label htmlFor="supplier-address" className="mb-1 block text-sm font-medium">
-              Address
+              Full Address
             </label>
             <input
               id="supplier-address"
@@ -112,53 +109,11 @@ export default function SupplierEnrollPage() {
               value={formData.address}
               onChange={handleChange}
               className={inputClass}
-              placeholder="123 Farm Road"
+              placeholder="123 Farm Road, Austin, TX 78701"
             />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label htmlFor="supplier-city" className="mb-1 block text-sm font-medium">
-                City
-              </label>
-              <input
-                id="supplier-city"
-                name="city"
-                required
-                value={formData.city}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label htmlFor="supplier-state" className="mb-1 block text-sm font-medium">
-                State
-              </label>
-              <input
-                id="supplier-state"
-                name="state"
-                required
-                maxLength={2}
-                value={formData.state}
-                onChange={handleChange}
-                className={inputClass}
-                placeholder="TX"
-              />
-            </div>
-            <div>
-              <label htmlFor="supplier-zip" className="mb-1 block text-sm font-medium">
-                Zip Code
-              </label>
-              <input
-                id="supplier-zip"
-                name="zipCode"
-                required
-                value={formData.zipCode}
-                onChange={handleChange}
-                className={inputClass}
-                placeholder="78701"
-              />
-            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Include street, city, state, and zip code.
+            </p>
           </div>
 
           <div>

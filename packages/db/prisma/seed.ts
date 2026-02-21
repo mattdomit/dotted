@@ -11,27 +11,48 @@ function hashPassword(password: string): string {
 async function main() {
   console.log("Seeding database...");
 
-  // --- Create Zone ---
-  const zone = await prisma.zone.upsert({
-    where: { slug: "downtown-demo" },
-    update: {},
-    create: {
-      id: randomUUID(),
-      name: "Downtown Demo District",
-      slug: "downtown-demo",
-      city: "San Francisco",
-      state: "CA",
-      isActive: true,
-      dailyCycleConfig: {
-        votingStartHour: 6,
-        votingEndHour: 12,
-        biddingEndHour: 14,
-        orderingStartHour: 17,
-        orderingEndHour: 21,
+  // --- Create Zones ---
+  const zoneConfigs = [
+    { slug: "downtown-demo", name: "Downtown Demo District", city: "San Francisco", state: "CA" },
+    { slug: "mission-district", name: "Mission District", city: "San Francisco", state: "CA" },
+    { slug: "east-austin", name: "East Austin", city: "Austin", state: "TX" },
+    { slug: "williamsburg", name: "Williamsburg", city: "Brooklyn", state: "NY" },
+    { slug: "silver-lake", name: "Silver Lake", city: "Los Angeles", state: "CA" },
+    { slug: "wicker-park", name: "Wicker Park", city: "Chicago", state: "IL" },
+    { slug: "hyde-park-tampa", name: "Hyde Park", city: "Tampa", state: "FL" },
+    { slug: "capitol-hill", name: "Capitol Hill", city: "Seattle", state: "WA" },
+    { slug: "downtown-raleigh", name: "Downtown Raleigh", city: "Raleigh", state: "NC" },
+    { slug: "back-bay", name: "Back Bay", city: "Boston", state: "MA" },
+    { slug: "midtown-atlanta", name: "Midtown", city: "Atlanta", state: "GA" },
+    { slug: "wynwood", name: "Wynwood", city: "Miami", state: "FL" },
+    { slug: "dupont-circle", name: "Dupont Circle", city: "Washington", state: "DC" },
+  ];
+
+  const zones = [];
+  for (const zc of zoneConfigs) {
+    const z = await prisma.zone.upsert({
+      where: { slug: zc.slug },
+      update: {},
+      create: {
+        id: randomUUID(),
+        name: zc.name,
+        slug: zc.slug,
+        city: zc.city,
+        state: zc.state,
+        isActive: true,
+        dailyCycleConfig: {
+          votingStartHour: 6,
+          votingEndHour: 12,
+          biddingEndHour: 14,
+          orderingStartHour: 17,
+          orderingEndHour: 21,
+        },
       },
-    },
-  });
-  console.log(`Zone created: ${zone.name}`);
+    });
+    zones.push(z);
+    console.log(`Zone created: ${z.name}`);
+  }
+  const zone = zones[0];
 
   // --- Create Admin User ---
   const admin = await prisma.user.upsert({

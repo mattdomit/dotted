@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { Header } from "@/components/header";
 import { apiFetch } from "@/lib/api";
+
+interface RestaurantOption {
+  id: string;
+  name: string;
+  address: string;
+  rating: number;
+}
 
 interface ReviewData {
   id: string;
@@ -23,11 +30,11 @@ interface ReviewsResponse {
 
 export default function ReviewsPage() {
   const { token } = useAuth();
+  const [restaurants, setRestaurants] = useState<RestaurantOption[]>([]);
   const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [total, setTotal] = useState(0);
-  const [restaurantId, setRestaurantId] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
@@ -41,6 +48,12 @@ export default function ReviewsPage() {
     body: "",
   });
 
+  useEffect(() => {
+    apiFetch<{ data: RestaurantOption[] }>("/restaurants")
+      .then((res) => setRestaurants(res.data))
+      .catch(() => {});
+  }, []);
+
   async function fetchReviews(rid: string) {
     setLoading(true);
     setError("");
@@ -52,7 +65,7 @@ export default function ReviewsPage() {
       setReviews(data.reviews);
       setAverageRating(data.averageRating);
       setTotal(data.total);
-      setRestaurantId(rid);
+      setSelectedRestaurantId(rid);
     } catch {
       setError("Could not load reviews.");
     } finally {
@@ -60,10 +73,10 @@ export default function ReviewsPage() {
     }
   }
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (searchInput.trim()) {
-      fetchReviews(searchInput.trim());
+  function handleBrowseChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const rid = e.target.value;
+    if (rid) {
+      fetchReviews(rid);
     }
   }
 
@@ -99,8 +112,8 @@ export default function ReviewsPage() {
       setSuccess("Review posted successfully!");
       setFormData({ restaurantId: "", orderId: "", rating: 5, title: "", body: "" });
       setShowForm(false);
-      if (restaurantId === formData.restaurantId) {
-        fetchReviews(restaurantId);
+      if (selectedRestaurantId === formData.restaurantId) {
+        fetchReviews(selectedRestaurantId);
       }
     } catch (err: any) {
       setError(err.message || "Failed to post review.");
@@ -117,6 +130,9 @@ export default function ReviewsPage() {
       </span>
     ));
   }
+
+  const selectedRestaurantName =
+    restaurants.find((r) => r.id === selectedRestaurantId)?.name || "";
 
   return (
     <div className="min-h-screen">
@@ -154,30 +170,23 @@ export default function ReviewsPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="review-restaurantId" className="mb-1 block text-sm font-medium">
-                  Restaurant ID
+                  Restaurant
                 </label>
-                <input
+                <select
                   id="review-restaurantId"
                   name="restaurantId"
                   required
                   value={formData.restaurantId}
                   onChange={handleChange}
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  placeholder="Restaurant UUID"
-                />
-              </div>
-              <div>
-                <label htmlFor="review-orderId" className="mb-1 block text-sm font-medium">
-                  Order ID (optional)
-                </label>
-                <input
-                  id="review-orderId"
-                  name="orderId"
-                  value={formData.orderId}
-                  onChange={handleChange}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  placeholder="Order UUID (if reviewing a specific order)"
-                />
+                >
+                  <option value="">Select a restaurant...</option>
+                  {restaurants.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="review-rating" className="mb-1 block text-sm font-medium">
@@ -240,31 +249,35 @@ export default function ReviewsPage() {
           </div>
         )}
 
-        <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="Enter Restaurant ID to view reviews..."
-          />
-          <button
-            type="submit"
-            className="rounded-md border bg-muted px-4 py-2 text-sm font-medium hover:bg-muted/80"
+        <div className="mb-6">
+          <label htmlFor="browse-restaurant" className="mb-1 block text-sm font-medium">
+            Browse reviews by restaurant
+          </label>
+          <select
+            id="browse-restaurant"
+            value={selectedRestaurantId}
+            onChange={handleBrowseChange}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
-            Search
-          </button>
-        </form>
+            <option value="">Select a restaurant...</option>
+            {restaurants.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} — {r.address}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {loading && <p className="text-muted-foreground">Loading reviews...</p>}
 
-        {!loading && restaurantId && (
+        {!loading && selectedRestaurantId && (
           <>
             <div className="mb-6 flex items-center gap-4 rounded-lg border bg-muted/30 p-4">
               <div className="text-3xl font-bold">{averageRating}</div>
               <div>
                 <div className="text-lg">{renderStars(Math.round(averageRating))}</div>
                 <p className="text-sm text-muted-foreground">
-                  {total} review{total !== 1 ? "s" : ""}
+                  {total} review{total !== 1 ? "s" : ""} for {selectedRestaurantName}
                 </p>
               </div>
             </div>
@@ -300,9 +313,9 @@ export default function ReviewsPage() {
           </>
         )}
 
-        {!loading && !restaurantId && (
+        {!loading && !selectedRestaurantId && (
           <p className="text-center text-muted-foreground">
-            Enter a restaurant ID above to view reviews, or write your own review.
+            Select a restaurant above to view reviews, or write your own review.
           </p>
         )}
       </div>

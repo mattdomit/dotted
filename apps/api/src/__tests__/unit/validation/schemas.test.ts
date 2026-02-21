@@ -209,8 +209,8 @@ describe("Validation Schemas", () => {
       expect(enrollRestaurantSchema.safeParse({ ...valid, state: "TCA" }).success).toBe(false);
     });
 
-    it("should reject non-digit phone", () => {
-      expect(enrollRestaurantSchema.safeParse({ ...valid, phone: "123-456-7890" }).success).toBe(false);
+    it("should reject too-short phone", () => {
+      expect(enrollRestaurantSchema.safeParse({ ...valid, phone: "123" }).success).toBe(false);
     });
 
     it("should accept optional website as empty string", () => {

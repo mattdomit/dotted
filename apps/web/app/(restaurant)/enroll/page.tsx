@@ -176,7 +176,9 @@ export default function EnrollPage() {
                 onChange={handleChange}
                 className={inputClass}
                 placeholder="12-3456789"
+                pattern="\d{2}-\d{7}"
               />
+              <p className="mt-1 text-xs text-muted-foreground">Format: XX-XXXXXXX</p>
             </div>
             <div>
               <label htmlFor="yearsInOperation" className={labelClass}>

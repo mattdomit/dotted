@@ -11,7 +11,6 @@ export const supplierRouter = Router();
 supplierRouter.post(
   "/enroll",
   authenticate,
-  requireRole(UserRole.SUPPLIER),
   async (req, res, next) => {
     try {
       const existing = await prisma.supplier.findUnique({ where: { ownerId: req.user!.userId } });
@@ -24,6 +23,14 @@ supplierRouter.post(
 
       const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
       if (!zone) throw new AppError("Zone not found", 404);
+
+      // Auto-upgrade user role to SUPPLIER if they aren't already
+      if (req.user!.role !== UserRole.SUPPLIER) {
+        await prisma.user.update({
+          where: { id: req.user!.userId },
+          data: { role: UserRole.SUPPLIER },
+        });
+      }
 
       const supplier = await prisma.supplier.create({
         data: {

@@ -71,7 +71,7 @@ export const enrollRestaurantSchema = z.object({
   businessLicenseNumber: z.string().min(5).max(50),
   taxId: z.string().regex(/^\d{2}-\d{7}$/, "Must be EIN format: XX-XXXXXXX"),
   ownerFullName: z.string().min(2).max(100),
-  phone: z.string().min(10).max(15).regex(/^\d+$/, "Must contain only digits"),
+  phone: z.string().min(10).max(20),
   email: z.string().email(),
   address: z.string().min(5).max(500),
   city: z.string().min(2).max(100),
