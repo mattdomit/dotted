@@ -16,7 +16,7 @@ deliveryRouter.patch(
   validate(updateDeliverySchema),
   async (req, res, next) => {
     try {
-      const poId = req.params.id;
+      const poId = req.params.id as string;
       const { status, latitude, longitude, note, estimatedArrival } = req.body;
 
       const po = await prisma.purchaseOrder.findUnique({
@@ -85,7 +85,7 @@ deliveryRouter.get(
   async (req, res, next) => {
     try {
       const tracking = await prisma.deliveryTracking.findMany({
-        where: { purchaseOrderId: req.params.id },
+        where: { purchaseOrderId: req.params.id as string },
         orderBy: { createdAt: "asc" },
       });
       res.json({ success: true, data: tracking });
@@ -99,13 +99,13 @@ deliveryRouter.get(
 deliveryRouter.get("/suppliers/:id/metrics", authenticate, async (req, res, next) => {
   try {
     const supplier = await prisma.supplier.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       select: { onTimeRate: true, qualityScore: true, fulfillmentRate: true },
     });
     if (!supplier) throw new AppError("Supplier not found", 404);
 
     const totalDeliveries = await prisma.purchaseOrder.count({
-      where: { supplierId: req.params.id, status: "DELIVERED" },
+      where: { supplierId: req.params.id as string, status: "DELIVERED" },
     });
 
     res.json({

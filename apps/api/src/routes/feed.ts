@@ -10,7 +10,7 @@ export const feedRouter = Router();
 // GET /zones/:id/feed — aggregated zone feed
 feedRouter.get("/zones/:id/feed", async (req, res, next) => {
   try {
-    const zoneId = req.params.id;
+    const zoneId = req.params.id as string;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const pageSize = Math.min(50, parseInt(req.query.pageSize as string) || 20);
     const skip = (page - 1) * pageSize;
@@ -54,7 +54,7 @@ feedRouter.post(
   validate(createZonePostSchema),
   async (req, res, next) => {
     try {
-      const zoneId = req.params.id;
+      const zoneId = req.params.id as string;
       const { body, imageUrl } = req.body;
 
       // Verify zone exists
@@ -87,7 +87,7 @@ feedRouter.post(
   validate(createPostCommentSchema),
   async (req, res, next) => {
     try {
-      const postId = req.params.id;
+      const postId = req.params.id as string;
       const { body, parentId } = req.body;
 
       const post = await prisma.zonePost.findUnique({ where: { id: postId } });
@@ -123,7 +123,7 @@ feedRouter.post(
 // POST /posts/:id/like — toggle like
 feedRouter.post("/posts/:id/like", authenticate, async (req, res, next) => {
   try {
-    const postId = req.params.id;
+    const postId = req.params.id as string;
     const userId = req.user!.userId;
 
     const post = await prisma.zonePost.findUnique({ where: { id: postId } });
@@ -148,7 +148,7 @@ feedRouter.post("/posts/:id/like", authenticate, async (req, res, next) => {
 // DELETE /posts/:id — delete own post
 feedRouter.delete("/posts/:id", authenticate, async (req, res, next) => {
   try {
-    const postId = req.params.id;
+    const postId = req.params.id as string;
 
     const post = await prisma.zonePost.findUnique({ where: { id: postId } });
     if (!post) throw new AppError("Post not found", 404);
@@ -167,7 +167,7 @@ feedRouter.delete("/posts/:id", authenticate, async (req, res, next) => {
 feedRouter.get("/posts/:id/comments", async (req, res, next) => {
   try {
     const comments = await prisma.postComment.findMany({
-      where: { postId: req.params.id, parentId: null },
+      where: { postId: req.params.id as string, parentId: null },
       include: {
         user: { select: { name: true, avatarUrl: true } },
         children: {

@@ -428,6 +428,8 @@ enum OrderStatus {
   READY
   PICKED_UP
   DELIVERED
+  CANCELLED
+  REFUNDED
 }
 
 enum FulfillmentType {

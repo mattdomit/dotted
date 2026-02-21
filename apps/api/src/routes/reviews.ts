@@ -130,7 +130,7 @@ reviewRouter.post(
   validate(createReviewReplySchema),
   async (req, res, next) => {
     try {
-      const reviewId = req.params.id;
+      const reviewId = req.params.id as string;
       const review = await prisma.review.findUnique({ where: { id: reviewId } });
       if (!review) throw new AppError("Review not found", 404);
 
@@ -157,7 +157,7 @@ reviewRouter.post(
   validate(reviewVoteSchema),
   async (req, res, next) => {
     try {
-      const reviewId = req.params.id;
+      const reviewId = req.params.id as string;
       const userId = req.user!.userId;
 
       const review = await prisma.review.findUnique({ where: { id: reviewId } });
@@ -180,7 +180,7 @@ reviewRouter.post(
 reviewRouter.get("/:id/replies", async (req, res, next) => {
   try {
     const replies = await prisma.reviewReply.findMany({
-      where: { reviewId: req.params.id },
+      where: { reviewId: req.params.id as string },
       include: { user: { select: { name: true, avatarUrl: true } } },
       orderBy: { createdAt: "asc" },
     });

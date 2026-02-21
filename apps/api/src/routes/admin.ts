@@ -52,7 +52,7 @@ adminRouter.get(
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
       const role = req.query.role as string | undefined;
 
-      const where = role ? { role } : {};
+      const where = role ? { role: role as UserRole } : {};
       const [users, total] = await Promise.all([
         prisma.user.findMany({
           where,

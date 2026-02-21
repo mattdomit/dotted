@@ -55,9 +55,10 @@ export function initPassport() {
             userId: user.id,
             email: user.email,
             role: user.role as unknown as UserRole,
+            emailVerified: user.emailVerified,
           });
 
-          done(null, { user, token });
+          done(null, { user, token } as any);
         } catch (err) {
           done(err as Error);
         }
