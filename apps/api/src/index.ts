@@ -18,6 +18,9 @@ import { reviewRouter } from "./routes/reviews";
 import { paymentRouter } from "./routes/payments";
 import { notificationRouter } from "./routes/notifications";
 import { uploadRouter } from "./routes/uploads";
+import { feedRouter } from "./routes/feed";
+import { deliveryRouter } from "./routes/delivery";
+import { userRouter } from "./routes/users";
 import { errorHandler } from "./middleware/error-handler";
 import { initCronJobs } from "./jobs/daily-cycle";
 import { logger } from "./lib/logger";
@@ -100,6 +103,9 @@ app.use("/api/reviews", reviewRouter);
 app.use("/api/payments", paymentRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/uploads", uploadRouter);
+app.use("/api/feed", feedRouter);
+app.use("/api/delivery", deliveryRouter);
+app.use("/api/users", userRouter);
 
 // Error handling
 app.use(errorHandler);

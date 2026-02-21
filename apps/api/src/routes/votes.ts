@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { prisma } from "@dotted/db";
 import { castVoteSchema } from "@dotted/shared";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireVerified } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/error-handler";
 import { getIO } from "../socket/handlers";
 
 export const voteRouter = Router();
 
-voteRouter.post("/", authenticate, validate(castVoteSchema), async (req, res, next) => {
+voteRouter.post("/", authenticate, requireVerified, validate(castVoteSchema), async (req, res, next) => {
   try {
     const { dishId, dailyCycleId } = req.body;
     const userId = req.user!.userId;

@@ -23,6 +23,7 @@ describe("Auth Routes — /api/auth", () => {
       expect(res.body.data.user.email).toBe("new@test.com");
       expect(res.body.data.token).toBeDefined();
       expect(res.body.data.user.role).toBe("CONSUMER");
+      expect(res.body.data.user.emailVerified).toBe(false);
     });
 
     it("should return 409 for duplicate email", async () => {

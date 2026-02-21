@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("CONSUMER");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email, password, name, role);
-      router.push("/");
+      router.push("/verify");
     } catch (err: any) {
       setError(err.message || "Registration failed");
     } finally {
@@ -95,6 +96,20 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="At least 8 characters"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="reg-phone" className="block text-sm font-medium">
+              Phone (optional)
+            </label>
+            <input
+              id="reg-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="+1 (555) 000-0000"
             />
           </div>
 

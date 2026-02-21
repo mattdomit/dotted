@@ -35,6 +35,9 @@ export function Header() {
       <Link href="/reviews" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
         Reviews
       </Link>
+      <Link href="/community" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+        Community
+      </Link>
     </>
   );
 
@@ -62,6 +65,9 @@ export function Header() {
           </Link>
           <Link href="/supplier-orders" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
             POs
+          </Link>
+          <Link href="/delivery" className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>
+            Delivery
           </Link>
         </>
       )}

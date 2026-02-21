@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@dotted/db";
-import { AI_MODEL, AI_MAX_TOKENS } from "@dotted/shared";
+import { AI_MODEL, AI_MAX_TOKENS, SEASONAL_INGREDIENTS } from "@dotted/shared";
 import type { DishSuggestion } from "@dotted/shared";
 
 const anthropic = new Anthropic();
@@ -16,6 +16,9 @@ Rules:
 - Suggest a variety of cuisines and cooking styles
 - Include clear recipe specifications with prep/cook times
 - Be creative but practical — these dishes need to be prepared in bulk by a restaurant
+- Respect dietary restrictions and preferences of the community
+- Stay within the budget ceiling if one is provided
+- Prioritize preferred cuisines when specified
 
 You MUST respond using the provided tool to return structured dish suggestions.`;
 
@@ -72,20 +75,27 @@ const DISH_TOOL: Anthropic.Tool = {
 };
 
 export async function generateDishSuggestions(zoneId: string, cycleId: string): Promise<DishSuggestion[]> {
-  // Fetch available inventory in the zone
+  // Fetch zone config
+  const zone = await prisma.zone.findUnique({
+    where: { id: zoneId },
+    select: { maxPricePerPlate: true, preferredCuisines: true },
+  });
+
+  // Fetch available inventory in the zone (cap at 50 items)
   const inventory = await prisma.supplierInventory.findMany({
     where: {
       supplier: { zoneId },
       quantityAvailable: { gt: 0 },
     },
     include: { supplier: { select: { businessName: true } } },
+    take: 50,
   });
 
   if (inventory.length === 0) {
     throw new Error("No inventory available in this zone");
   }
 
-  // Fetch past winning dishes to avoid repetition
+  // Fetch past winning dishes to avoid repetition (cap at 14)
   const pastDishes = await prisma.dish.findMany({
     where: {
       dailyCycle: { zoneId, winningDishId: { not: null } },
@@ -95,6 +105,36 @@ export async function generateDishSuggestions(zoneId: string, cycleId: string): 
     select: { name: true, cuisine: true },
   });
 
+  // Aggregate dietary preferences from zone members
+  const members = await prisma.zoneMembership.findMany({
+    where: { zoneId },
+    include: { user: { select: { dietaryPreferences: true } } },
+  });
+  const dietaryCounts: Record<string, number> = {};
+  for (const m of members) {
+    const prefs = m.user.dietaryPreferences as string[];
+    if (Array.isArray(prefs)) {
+      for (const pref of prefs) {
+        dietaryCounts[pref] = (dietaryCounts[pref] || 0) + 1;
+      }
+    }
+  }
+
+  // Fetch historical review ratings by cuisine for this zone
+  const reviewStats = await prisma.review.groupBy({
+    by: ["restaurantId"],
+    where: {
+      restaurant: { zoneId },
+    },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+
+  // Get seasonal ingredients for current month
+  const currentMonth = new Date().getMonth();
+  const seasonalItems = SEASONAL_INGREDIENTS[currentMonth] || [];
+
+  // Build enhanced prompt
   const inventoryText = inventory
     .map((item) => `- ${item.ingredientName} (${item.category}): ${item.quantityAvailable} ${item.unit} @ $${item.pricePerUnit}/${item.unit} [${item.supplier.businessName}]${item.isOrganic ? " [ORGANIC]" : ""}`)
     .join("\n");
@@ -103,10 +143,34 @@ export async function generateDishSuggestions(zoneId: string, cycleId: string): 
     ? `\nRecent winning dishes (avoid repetition):\n${pastDishes.map((d) => `- ${d.name} (${d.cuisine})`).join("\n")}`
     : "";
 
+  const budgetText = zone?.maxPricePerPlate
+    ? `\nBudget ceiling: $${zone.maxPricePerPlate} per plate maximum. All dishes MUST be at or below this price.`
+    : "";
+
+  const preferredCuisines = zone?.preferredCuisines as string[] | undefined;
+  const cuisineText = preferredCuisines && preferredCuisines.length > 0
+    ? `\nPreferred cuisines (prioritize these): ${preferredCuisines.join(", ")}`
+    : "";
+
+  const dietaryText = Object.keys(dietaryCounts).length > 0
+    ? `\nCommunity dietary needs (number of members):\n${Object.entries(dietaryCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([pref, count]) => `- ${pref}: ${count} members`)
+        .join("\n")}\nTry to include at least one dish that accommodates the most common restrictions.`
+    : "";
+
+  const seasonalText = seasonalItems.length > 0
+    ? `\nSeasonal ingredients this month: ${seasonalItems.join(", ")}. Prefer these when available in inventory.`
+    : "";
+
   const userMessage = `Here is the available inventory from local suppliers in this zone:
 
 ${inventoryText}
 ${pastDishesText}
+${budgetText}
+${cuisineText}
+${dietaryText}
+${seasonalText}
 
 Today's date: ${new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
 
@@ -127,7 +191,16 @@ Please suggest 3-5 creative dishes that restaurants could prepare as today's "Di
     throw new Error("AI did not return structured dish suggestions");
   }
 
-  const { dishes } = toolUse.input as { dishes: DishSuggestion[] };
+  let { dishes } = toolUse.input as { dishes: DishSuggestion[] };
+
+  // Post-generation filter: discard dishes above maxPricePerPlate
+  if (zone?.maxPricePerPlate) {
+    dishes = dishes.filter((d) => d.estimatedCost <= zone.maxPricePerPlate!);
+  }
+
+  if (dishes.length === 0) {
+    throw new Error("No dishes within budget after filtering");
+  }
 
   // Save dishes to database
   for (const dish of dishes) {

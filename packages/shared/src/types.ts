@@ -47,6 +47,19 @@ export enum PurchaseOrderStatus {
   DELIVERED = "DELIVERED",
 }
 
+export enum VerificationType {
+  EMAIL = "EMAIL",
+  SMS = "SMS",
+}
+
+export enum DeliveryStatus {
+  DISPATCHED = "DISPATCHED",
+  IN_TRANSIT = "IN_TRANSIT",
+  ARRIVED = "ARRIVED",
+  DELIVERED = "DELIVERED",
+  FAILED = "FAILED",
+}
+
 // --- User ---
 
 export interface User {
@@ -55,6 +68,23 @@ export interface User {
   name: string;
   role: UserRole;
   avatarUrl?: string;
+  emailVerified: boolean;
+  phoneNumber?: string;
+  dietaryPreferences: string[];
+  bio?: string;
+  createdAt: Date;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  bio?: string;
+  role: UserRole;
+  dietaryPreferences: string[];
+  badges: string[];
+  reviewCount: number;
+  postCount: number;
   createdAt: Date;
 }
 
@@ -68,6 +98,8 @@ export interface Zone {
   state: string;
   isActive: boolean;
   dailyCycleConfig: DailyCycleConfig;
+  maxPricePerPlate?: number;
+  preferredCuisines: string[];
 }
 
 export interface DailyCycleConfig {
@@ -191,6 +223,16 @@ export interface Supplier {
   rating: number;
   isVerified: boolean;
   zoneId: string;
+  onTimeRate: number;
+  qualityScore: number;
+  fulfillmentRate: number;
+}
+
+export interface SupplierMetrics {
+  onTimeRate: number;
+  qualityScore: number;
+  fulfillmentRate: number;
+  totalDeliveries: number;
 }
 
 export interface SupplierInventory {
@@ -216,6 +258,8 @@ export interface PurchaseOrder {
   status: PurchaseOrderStatus;
   totalCost: number;
   deliveryEta?: Date;
+  deliveryNotes?: string;
+  actualDeliveryTime?: Date;
 }
 
 export interface PurchaseOrderItem {
@@ -224,6 +268,19 @@ export interface PurchaseOrderItem {
   inventoryItemId: string;
   quantity: number;
   unitPrice: number;
+}
+
+// --- Delivery Tracking ---
+
+export interface DeliveryTracking {
+  id: string;
+  purchaseOrderId: string;
+  status: DeliveryStatus;
+  latitude?: number;
+  longitude?: number;
+  note?: string;
+  estimatedArrival?: Date;
+  createdAt: Date;
 }
 
 // --- Order ---
@@ -259,9 +316,66 @@ export interface Review {
   rating: number;
   title: string;
   body: string;
+  imageUrls: string[];
   createdAt: Date;
   user?: { name: string; avatarUrl?: string };
   restaurant?: { name: string };
+  replyCount?: number;
+  helpfulCount?: number;
+  isVerifiedPurchase?: boolean;
+}
+
+export interface ReviewReply {
+  id: string;
+  reviewId: string;
+  userId: string;
+  body: string;
+  createdAt: Date;
+  user?: { name: string; avatarUrl?: string };
+}
+
+export interface ReviewVote {
+  id: string;
+  reviewId: string;
+  userId: string;
+  helpful: boolean;
+}
+
+// --- Community ---
+
+export interface ZonePost {
+  id: string;
+  zoneId: string;
+  userId: string;
+  body: string;
+  imageUrl?: string;
+  createdAt: Date;
+  user?: { name: string; avatarUrl?: string };
+  commentCount?: number;
+  likeCount?: number;
+  liked?: boolean;
+}
+
+export interface PostComment {
+  id: string;
+  postId: string;
+  userId: string;
+  body: string;
+  parentId?: string;
+  createdAt: Date;
+  user?: { name: string; avatarUrl?: string };
+  children?: PostComment[];
+}
+
+// --- Verification ---
+
+export interface VerificationCode {
+  id: string;
+  userId: string;
+  code: string;
+  type: VerificationType;
+  expiresAt: Date;
+  verifiedAt?: Date;
 }
 
 // --- AI Types ---
@@ -300,6 +414,7 @@ export enum SocketEvent {
   BID_UPDATE = "bid:update",
   CYCLE_STATUS_CHANGE = "cycle:status",
   ORDER_STATUS_CHANGE = "order:status",
+  DELIVERY_UPDATE = "delivery:update",
   NOTIFICATION = "notification",
 }
 

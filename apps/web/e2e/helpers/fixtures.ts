@@ -1,10 +1,12 @@
 import { test as base, type Page } from "@playwright/test";
-import { registerUser, injectAuthToken } from "./auth";
+import { registerUser, registerUnverifiedUser, injectAuthToken } from "./auth";
 import { getDemoZoneId } from "./api-setup";
 
 type Fixtures = {
   consumerPage: Page;
   restaurantPage: Page;
+  supplierPage: Page;
+  verifiedConsumerPage: Page;
   adminUser: { id: string; token: string };
   demoZoneId: string;
 };
@@ -21,6 +23,24 @@ export const test = base.extend<Fixtures>({
 
   restaurantPage: async ({ browser }, use) => {
     const user = await registerUser("RESTAURANT_OWNER");
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await injectAuthToken(page, user.token);
+    await use(page);
+    await context.close();
+  },
+
+  supplierPage: async ({ browser }, use) => {
+    const user = await registerUser("SUPPLIER");
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await injectAuthToken(page, user.token);
+    await use(page);
+    await context.close();
+  },
+
+  verifiedConsumerPage: async ({ browser }, use) => {
+    const user = await registerUser("CONSUMER");
     const context = await browser.newContext();
     const page = await context.newPage();
     await injectAuthToken(page, user.token);

@@ -6,6 +6,15 @@ import { prisma } from "@dotted/db";
  */
 export async function cleanDatabase() {
   await prisma.$transaction([
+    // New social/community models first
+    prisma.postLike.deleteMany(),
+    prisma.postComment.deleteMany(),
+    prisma.zonePost.deleteMany(),
+    prisma.reviewVote.deleteMany(),
+    prisma.reviewReply.deleteMany(),
+    prisma.deliveryTracking.deleteMany(),
+    prisma.verificationCode.deleteMany(),
+    // Original models
     prisma.notification.deleteMany(),
     prisma.review.deleteMany(),
     prisma.orderItem.deleteMany(),

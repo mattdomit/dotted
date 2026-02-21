@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "@dotted/db";
-import { createReviewSchema } from "@dotted/shared";
-import { authenticate } from "../middleware/auth";
+import { createReviewSchema, createReviewReplySchema, reviewVoteSchema } from "@dotted/shared";
+import { authenticate, requireVerified } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/error-handler";
 
@@ -14,6 +14,7 @@ reviewRouter.get("/restaurant/:restaurantId", async (req, res, next) => {
       where: { restaurantId: req.params.restaurantId },
       include: {
         user: { select: { name: true, avatarUrl: true } },
+        _count: { select: { replies: true, votes: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -23,9 +24,24 @@ reviewRouter.get("/restaurant/:restaurantId", async (req, res, next) => {
         ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
         : 0;
 
+    // Compute helpful counts and verified purchase flag
+    const enriched = await Promise.all(
+      reviews.map(async (r) => {
+        const helpfulCount = await prisma.reviewVote.count({
+          where: { reviewId: r.id, helpful: true },
+        });
+        return {
+          ...r,
+          replyCount: r._count.replies,
+          helpfulCount,
+          isVerifiedPurchase: !!r.orderId,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: { reviews, averageRating: Math.round(avg * 10) / 10, total: reviews.length },
+      data: { reviews: enriched, averageRating: Math.round(avg * 10) / 10, total: reviews.length },
     });
   } catch (err) {
     next(err);
@@ -48,14 +64,15 @@ reviewRouter.get("/mine", authenticate, async (req, res, next) => {
   }
 });
 
-// POST / — create a review (authenticated)
+// POST / — create a review (authenticated + verified)
 reviewRouter.post(
   "/",
   authenticate,
+  requireVerified,
   validate(createReviewSchema),
   async (req, res, next) => {
     try {
-      const { restaurantId, orderId, rating, title, body } = req.body;
+      const { restaurantId, orderId, rating, title, body, imageUrls } = req.body;
       const userId = req.user!.userId;
 
       // Verify restaurant exists
@@ -83,7 +100,7 @@ reviewRouter.post(
       }
 
       const review = await prisma.review.create({
-        data: { userId, restaurantId, orderId, rating, title, body },
+        data: { userId, restaurantId, orderId, rating, title, body, imageUrls: imageUrls || [] },
         include: { user: { select: { name: true, avatarUrl: true } } },
       });
 
@@ -105,3 +122,70 @@ reviewRouter.post(
     }
   }
 );
+
+// POST /:id/reply — create a reply on a review
+reviewRouter.post(
+  "/:id/reply",
+  authenticate,
+  validate(createReviewReplySchema),
+  async (req, res, next) => {
+    try {
+      const reviewId = req.params.id;
+      const review = await prisma.review.findUnique({ where: { id: reviewId } });
+      if (!review) throw new AppError("Review not found", 404);
+
+      const reply = await prisma.reviewReply.create({
+        data: {
+          reviewId,
+          userId: req.user!.userId,
+          body: req.body.body,
+        },
+        include: { user: { select: { name: true, avatarUrl: true } } },
+      });
+
+      res.status(201).json({ success: true, data: reply });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /:id/vote — vote helpful/unhelpful on a review
+reviewRouter.post(
+  "/:id/vote",
+  authenticate,
+  validate(reviewVoteSchema),
+  async (req, res, next) => {
+    try {
+      const reviewId = req.params.id;
+      const userId = req.user!.userId;
+
+      const review = await prisma.review.findUnique({ where: { id: reviewId } });
+      if (!review) throw new AppError("Review not found", 404);
+
+      const vote = await prisma.reviewVote.upsert({
+        where: { reviewId_userId: { reviewId, userId } },
+        update: { helpful: req.body.helpful },
+        create: { reviewId, userId, helpful: req.body.helpful },
+      });
+
+      res.json({ success: true, data: vote });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /:id/replies — get replies for a review
+reviewRouter.get("/:id/replies", async (req, res, next) => {
+  try {
+    const replies = await prisma.reviewReply.findMany({
+      where: { reviewId: req.params.id },
+      include: { user: { select: { name: true, avatarUrl: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    res.json({ success: true, data: replies });
+  } catch (err) {
+    next(err);
+  }
+});

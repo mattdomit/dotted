@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "@dotted/db";
 import { createOrderSchema, updateOrderStatusSchema, UserRole } from "@dotted/shared";
-import { authenticate, requireRole } from "../middleware/auth";
+import { authenticate, requireRole, requireVerified } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/error-handler";
 import { getIO } from "../socket/handlers";
@@ -10,7 +10,7 @@ import { notify } from "../services/notifications";
 
 export const orderRouter = Router();
 
-orderRouter.post("/", authenticate, validate(createOrderSchema), async (req, res, next) => {
+orderRouter.post("/", authenticate, requireVerified, validate(createOrderSchema), async (req, res, next) => {
   try {
     const { dailyCycleId, restaurantId, quantity, fulfillmentType } = req.body;
     const userId = req.user!.userId;

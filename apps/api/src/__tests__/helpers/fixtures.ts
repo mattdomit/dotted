@@ -8,7 +8,7 @@ function inc() {
   return ++fixtureCounter;
 }
 
-export async function createTestZone(overrides: Partial<{ name: string; slug: string; city: string; state: string }> = {}) {
+export async function createTestZone(overrides: Partial<{ name: string; slug: string; city: string; state: string; maxPricePerPlate: number; preferredCuisines: string[] }> = {}) {
   const n = inc();
   return prisma.zone.create({
     data: {
@@ -16,6 +16,8 @@ export async function createTestZone(overrides: Partial<{ name: string; slug: st
       slug: overrides.slug ?? `test-zone-${n}-${Date.now()}`,
       city: overrides.city ?? "Test City",
       state: overrides.state ?? "TC",
+      maxPricePerPlate: overrides.maxPricePerPlate,
+      preferredCuisines: overrides.preferredCuisines ?? [],
     },
   });
 }
@@ -146,6 +148,33 @@ export async function createTestBid(
       prepTime: overrides.prepTime ?? 30,
       maxCapacity: overrides.maxCapacity ?? 100,
       serviceFeeAccepted: true,
+    },
+  });
+}
+
+export async function createTestReviewReply(reviewId: string, userId: string, body: string = "Test reply") {
+  return prisma.reviewReply.create({
+    data: { reviewId, userId, body },
+  });
+}
+
+export async function createTestZonePost(zoneId: string, userId: string, body: string = "Test post") {
+  return prisma.zonePost.create({
+    data: { zoneId, userId, body },
+  });
+}
+
+export async function createTestVerificationCode(
+  userId: string,
+  type: "EMAIL" | "SMS" = "EMAIL",
+  overrides: Partial<{ code: string; expiresAt: Date }> = {}
+) {
+  return prisma.verificationCode.create({
+    data: {
+      userId,
+      code: overrides.code ?? "123456",
+      type,
+      expiresAt: overrides.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000),
     },
   });
 }

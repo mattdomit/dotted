@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole, FulfillmentType } from "./types";
+import { UserRole, FulfillmentType, DeliveryStatus } from "./types";
 
 // --- Auth Schemas ---
 
@@ -8,11 +8,23 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(128),
   name: z.string().min(2).max(100),
   role: z.nativeEnum(UserRole),
+  phoneNumber: z.string().min(10).max(20).optional(),
 });
 
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
+});
+
+// --- Verification Schemas ---
+
+export const verifyCodeSchema = z.object({
+  code: z.string().length(6).regex(/^\d{6}$/, "Code must be 6 digits"),
+  type: z.enum(["EMAIL", "SMS"]),
+});
+
+export const resendVerificationSchema = z.object({
+  type: z.enum(["EMAIL", "SMS"]),
 });
 
 // --- Vote Schema ---
@@ -90,7 +102,7 @@ export const enrollRestaurantSchema = z.object({
 
 export type EnrollRestaurantInput = z.infer<typeof enrollRestaurantSchema>;
 
-// --- Review Schema ---
+// --- Review Schemas ---
 
 export const createReviewSchema = z.object({
   restaurantId: z.string().uuid(),
@@ -98,9 +110,58 @@ export const createReviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
   title: z.string().min(3).max(200),
   body: z.string().min(10).max(2000),
+  imageUrls: z.array(z.string().url()).max(3).default([]),
 });
 
 export type CreateReviewInput = z.infer<typeof createReviewSchema>;
+
+export const createReviewReplySchema = z.object({
+  body: z.string().min(1).max(1000),
+});
+
+export const reviewVoteSchema = z.object({
+  helpful: z.boolean(),
+});
+
+// --- Community Schemas ---
+
+export const createZonePostSchema = z.object({
+  body: z.string().min(1).max(2000),
+  imageUrl: z.string().url().optional(),
+});
+
+export const createPostCommentSchema = z.object({
+  body: z.string().min(1).max(1000),
+  parentId: z.string().uuid().optional(),
+});
+
+// --- Delivery Schema ---
+
+export const updateDeliverySchema = z.object({
+  status: z.nativeEnum(DeliveryStatus),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  note: z.string().max(500).optional(),
+  estimatedArrival: z.string().datetime().optional(),
+});
+
+// --- User Profile Schemas ---
+
+export const updateDietaryPreferencesSchema = z.object({
+  dietaryPreferences: z.array(z.string().max(50)).max(20),
+});
+
+export const updateProfileSchema = z.object({
+  bio: z.string().max(500).optional(),
+  phoneNumber: z.string().min(10).max(20).optional(),
+});
+
+// --- Zone Config Schema ---
+
+export const updateZoneConfigSchema = z.object({
+  maxPricePerPlate: z.number().positive().max(200).optional(),
+  preferredCuisines: z.array(z.string().max(50)).max(20).optional(),
+});
 
 // --- Zone Schema ---
 
@@ -117,3 +178,7 @@ export type SubmitBidInput = z.infer<typeof submitBidSchema>;
 export type InventoryItemInput = z.infer<typeof inventoryItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
+export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;
+export type UpdateDeliveryInput = z.infer<typeof updateDeliverySchema>;
+export type UpdateDietaryPreferencesInput = z.infer<typeof updateDietaryPreferencesSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

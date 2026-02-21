@@ -7,6 +7,7 @@ export interface AuthPayload {
   userId: string;
   email: string;
   role: UserRole;
+  emailVerified: boolean;
 }
 
 declare global {
@@ -33,7 +34,12 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     return next(new AppError("Authentication required", 401));
   }
   try {
-    req.user = verifyToken(header.slice(7));
+    const payload = verifyToken(header.slice(7));
+    // Backwards-compat: tokens issued before v1.5 won't have emailVerified
+    if (payload.emailVerified === undefined) {
+      payload.emailVerified = false;
+    }
+    req.user = payload;
     next();
   } catch {
     next(new AppError("Invalid token", 401));
@@ -48,4 +54,12 @@ export function requireRole(...roles: UserRole[]) {
     }
     next();
   };
+}
+
+export function requireVerified(req: Request, _res: Response, next: NextFunction) {
+  if (!req.user) return next(new AppError("Authentication required", 401));
+  if (!req.user.emailVerified) {
+    return next(new AppError("Email verification required", 403));
+  }
+  next();
 }

@@ -19,26 +19,59 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  role         UserRole @default(CONSUMER)
-  passwordHash String?
-  googleId     String?  @unique
-  avatarUrl    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  name               String
+  role               UserRole @default(CONSUMER)
+  passwordHash       String?
+  googleId           String?  @unique
+  avatarUrl          String?
+  emailVerified      Boolean  @default(false)
+  phoneNumber        String?
+  dietaryPreferences Json     @default("[]")
+  bio                String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Relations
-  votes           Vote[]
-  orders          Order[]
-  restaurant      Restaurant?
-  supplier        Supplier?
-  zoneMemberships ZoneMembership[]
-  reviews         Review[]
-  notifications   Notification[]
+  votes             Vote[]
+  orders            Order[]
+  restaurant        Restaurant?
+  supplier          Supplier?
+  zoneMemberships   ZoneMembership[]
+  reviews           Review[]
+  notifications     Notification[]
+  verificationCodes VerificationCode[]
+  reviewReplies     ReviewReply[]
+  reviewVotes       ReviewVote[]
+  zonePosts         ZonePost[]
+  postComments      PostComment[]
+  postLikes         PostLike[]
 
   @@map("users")
+}
+
+// ============================================
+// Verification
+// ============================================
+
+enum VerificationType {
+  EMAIL
+  SMS
+}
+
+model VerificationCode {
+  id         String           @id @default(uuid())
+  userId     String
+  code       String
+  type       VerificationType
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("verification_codes")
 }
 
 // ============================================
@@ -55,6 +88,8 @@ model Zone {
   boundaryGeoJson  String?  @db.Text
   isActive         Boolean  @default(true)
   dailyCycleConfig Json     @default("{}")
+  maxPricePerPlate Float?
+  preferredCuisines Json    @default("[]")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -63,6 +98,7 @@ model Zone {
   dailyCycles  DailyCycle[]
   restaurants  Restaurant[]
   suppliers    Supplier[]
+  zonePosts    ZonePost[]
 
   @@map("zones")
 }
@@ -263,16 +299,19 @@ model Bid {
 // ============================================
 
 model Supplier {
-  id             String  @id @default(uuid())
-  ownerId        String  @unique
-  businessName   String
-  address        String
-  latitude       Float?
-  longitude      Float?
-  certifications Json    @default("[]")
-  rating         Float   @default(0)
-  isVerified     Boolean @default(false)
-  zoneId         String
+  id              String  @id @default(uuid())
+  ownerId         String  @unique
+  businessName    String
+  address         String
+  latitude        Float?
+  longitude       Float?
+  certifications  Json    @default("[]")
+  rating          Float   @default(0)
+  isVerified      Boolean @default(false)
+  zoneId          String
+  onTimeRate      Float   @default(0)
+  qualityScore    Float   @default(0)
+  fulfillmentRate Float   @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -318,19 +357,22 @@ enum PurchaseOrderStatus {
 }
 
 model PurchaseOrder {
-  id           String              @id @default(uuid())
-  dailyCycleId String
-  supplierId   String
-  status       PurchaseOrderStatus @default(PENDING)
-  totalCost    Float
-  deliveryEta  DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id                 String              @id @default(uuid())
+  dailyCycleId       String
+  supplierId         String
+  status             PurchaseOrderStatus @default(PENDING)
+  totalCost          Float
+  deliveryEta        DateTime?
+  deliveryNotes      String?             @db.Text
+  actualDeliveryTime DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   // Relations
-  dailyCycle DailyCycle          @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
-  supplier   Supplier            @relation(fields: [supplierId], references: [id])
-  items      PurchaseOrderItem[]
+  dailyCycle        DailyCycle          @relation(fields: [dailyCycleId], references: [id], onDelete: Cascade)
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  items             PurchaseOrderItem[]
+  deliveryTracking  DeliveryTracking[]
 
   @@map("purchase_orders")
 }
@@ -347,6 +389,33 @@ model PurchaseOrderItem {
   inventoryItem SupplierInventory @relation(fields: [inventoryItemId], references: [id])
 
   @@map("purchase_order_items")
+}
+
+// ============================================
+// Delivery Tracking
+// ============================================
+
+enum DeliveryStatus {
+  DISPATCHED
+  IN_TRANSIT
+  ARRIVED
+  DELIVERED
+  FAILED
+}
+
+model DeliveryTracking {
+  id               String         @id @default(uuid())
+  purchaseOrderId  String
+  status           DeliveryStatus
+  latitude         Float?
+  longitude        Float?
+  note             String?        @db.Text
+  estimatedArrival DateTime?
+  createdAt        DateTime       @default(now())
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_tracking")
 }
 
 // ============================================
@@ -416,16 +485,94 @@ model Review {
   rating       Int
   title        String
   body         String   @db.Text
+  imageUrls    Json     @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  order      Order?     @relation(fields: [orderId], references: [id])
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order      Order?        @relation(fields: [orderId], references: [id])
+  replies    ReviewReply[]
+  votes      ReviewVote[]
 
   @@unique([userId, orderId])
   @@map("reviews")
+}
+
+model ReviewReply {
+  id        String   @id @default(uuid())
+  reviewId  String
+  userId    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("review_replies")
+}
+
+model ReviewVote {
+  id       String  @id @default(uuid())
+  reviewId String
+  userId   String
+  helpful  Boolean
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+  @@map("review_votes")
+}
+
+// ============================================
+// Community Feed
+// ============================================
+
+model ZonePost {
+  id        String   @id @default(uuid())
+  zoneId    String
+  userId    String
+  body      String   @db.Text
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
+  zone     Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments PostComment[]
+  likes    PostLike[]
+
+  @@index([zoneId, createdAt])
+  @@map("zone_posts")
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  body      String   @db.Text
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  post   ZonePost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent PostComment? @relation("CommentThread", fields: [parentId], references: [id])
+  children PostComment[] @relation("CommentThread")
+
+  @@map("post_comments")
+}
+
+model PostLike {
+  id     String @id @default(uuid())
+  postId String
+  userId String
+
+  post ZonePost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
 }
 
 // ============================================

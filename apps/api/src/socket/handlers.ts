@@ -42,6 +42,24 @@ export function initSocket(httpServer: HTTPServer) {
       socket.leave(`user:${userId}`);
     });
 
+    // Join zone room for community feed updates
+    socket.on("join:zone", (zoneId: string) => {
+      socket.join(`zone:${zoneId}`);
+    });
+
+    socket.on("leave:zone", (zoneId: string) => {
+      socket.leave(`zone:${zoneId}`);
+    });
+
+    // Join delivery room for tracking updates
+    socket.on("join:delivery", (purchaseOrderId: string) => {
+      socket.join(`delivery:${purchaseOrderId}`);
+    });
+
+    socket.on("leave:delivery", (purchaseOrderId: string) => {
+      socket.leave(`delivery:${purchaseOrderId}`);
+    });
+
     socket.on("disconnect", () => {
       console.log(`Socket disconnected: ${socket.id}`);
     });

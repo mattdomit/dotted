@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 interface AuthUser {
@@ -9,6 +10,7 @@ interface AuthUser {
   name: string;
   role: string;
   avatarUrl?: string;
+  emailVerified: boolean;
 }
 
 interface AuthContextType {
@@ -35,10 +37,14 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+const PUBLIC_PATHS = ["/", "/login", "/register", "/verify", "/terms", "/privacy"];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+  const router = useRouter();
 
   // On mount, check for stored token and fetch user
   useEffect(() => {
@@ -56,6 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, []);
+
+  // Redirect unverified users to /verify
+  useEffect(() => {
+    if (loading) return;
+    if (user && !user.emailVerified && !PUBLIC_PATHS.includes(pathname)) {
+      router.push("/verify");
+    }
+  }, [user, loading, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await apiFetch<{ data: { user: AuthUser; token: string } }>("/auth/login", {

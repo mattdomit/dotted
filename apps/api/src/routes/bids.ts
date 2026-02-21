@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "@dotted/db";
 import { submitBidSchema, UserRole } from "@dotted/shared";
-import { authenticate, requireRole } from "../middleware/auth";
+import { authenticate, requireRole, requireVerified } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/error-handler";
 import { getIO } from "../socket/handlers";
@@ -11,6 +11,7 @@ export const bidRouter = Router();
 bidRouter.post(
   "/",
   authenticate,
+  requireVerified,
   requireRole(UserRole.RESTAURANT_OWNER),
   validate(submitBidSchema),
   async (req, res, next) => {
