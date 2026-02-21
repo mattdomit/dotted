@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
 import { createServer } from "http";
 import { initSocket } from "./socket/handlers";
 import { authRouter } from "./routes/auth";
@@ -18,16 +17,20 @@ import { restaurantRouter } from "./routes/restaurants";
 import { reviewRouter } from "./routes/reviews";
 import { paymentRouter } from "./routes/payments";
 import { notificationRouter } from "./routes/notifications";
+import { uploadRouter } from "./routes/uploads";
 import { errorHandler } from "./middleware/error-handler";
 import { initCronJobs } from "./jobs/daily-cycle";
+import { logger } from "./lib/logger";
+import { startWorkers } from "./lib/queue";
 import passport from "passport";
 import { initPassport } from "./lib/passport";
+import pinoHttp from "pino-http";
 
 // Validate required environment variables on startup
 const REQUIRED_ENV = ["DATABASE_URL"];
 const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missing.length > 0) {
-  console.error(`Missing required environment variables: ${missing.join(", ")}`);
+  logger.fatal({ missing }, "Missing required environment variables");
   process.exit(1);
 }
 
@@ -37,10 +40,12 @@ const OPTIONAL_SERVICES = [
   { key: "GOOGLE_CLIENT_ID", name: "Google OAuth" },
   { key: "RESEND_API_KEY", name: "Resend Email" },
   { key: "REDIS_URL", name: "Redis Cache" },
+  { key: "TWILIO_ACCOUNT_SID", name: "Twilio SMS" },
+  { key: "S3_ENDPOINT", name: "S3 Storage" },
 ];
 for (const svc of OPTIONAL_SERVICES) {
   if (!process.env[svc.key]) {
-    console.warn(`${svc.name}: disabled (${svc.key} not set)`);
+    logger.warn(`${svc.name}: disabled (${svc.key} not set)`);
   }
 }
 
@@ -55,7 +60,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || process.env.WEB_URL || "http
   .map((o) => o.trim());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
-app.use(morgan("dev"));
+app.use(pinoHttp({ logger, autoLogging: process.env.NODE_ENV === "production" }));
 app.use(passport.initialize());
 initPassport();
 
@@ -94,6 +99,7 @@ app.use("/api/restaurants", restaurantRouter);
 app.use("/api/reviews", reviewRouter);
 app.use("/api/payments", paymentRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/uploads", uploadRouter);
 
 // Error handling
 app.use(errorHandler);
@@ -101,11 +107,14 @@ app.use(errorHandler);
 // Socket.io
 initSocket(httpServer);
 
-// Cron jobs
+// Background workers (if Redis available)
+startWorkers();
+
+// Cron jobs (fallback scheduler — queued jobs preferred when Redis is available)
 initCronJobs();
 
 httpServer.listen(PORT, () => {
-  console.log(`Dotted API running on http://localhost:${PORT}`);
+  logger.info({ port: PORT }, "Dotted API running");
 });
 
 export default app;

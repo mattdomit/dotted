@@ -1,6 +1,9 @@
 import { prisma } from "@dotted/db";
 import { Resend } from "resend";
 import { getIO } from "../socket/handlers";
+import { sendSms } from "../lib/twilio";
+import { enqueueEmail, enqueueSms } from "../lib/queue";
+import { logger } from "../lib/logger";
 
 let resend: Resend | null = null;
 
@@ -17,7 +20,7 @@ interface NotifyOptions {
   type: string;
   title: string;
   body: string;
-  channels?: ("EMAIL" | "IN_APP")[];
+  channels?: ("EMAIL" | "SMS" | "IN_APP")[];
   metadata?: Record<string, string | number | boolean>;
 }
 
@@ -53,25 +56,55 @@ export async function notify({
     });
   }
 
-  // Send email via Resend if configured and EMAIL channel requested
+  // Send email via Resend (queue if available, else inline)
   if (channels.includes("EMAIL")) {
-    const emailClient = getResend();
-    if (emailClient) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, name: true },
-      });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
 
-      if (user) {
-        try {
-          await emailClient.emails.send({
-            from: "Dotted <notifications@dotted.app>",
-            to: user.email,
-            subject: title,
-            text: body,
-          });
-        } catch (err) {
-          console.error("Failed to send email notification:", err);
+    if (user) {
+      const queued = await enqueueEmail({ to: user.email, subject: title, body });
+      if (!queued) {
+        // Fallback: send inline
+        const emailClient = getResend();
+        if (emailClient) {
+          try {
+            await emailClient.emails.send({
+              from: "Dotted <notifications@dotted.app>",
+              to: user.email,
+              subject: title,
+              text: body,
+            });
+          } catch (err) {
+            logger.error({ err, userId }, "Failed to send email notification");
+          }
+        }
+      }
+    }
+  }
+
+  // Send SMS via Twilio (queue if available, else inline)
+  if (channels.includes("SMS")) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
+
+    // Use phone from restaurant/supplier profile if available
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { ownerId: userId },
+      select: { phone: true },
+    });
+
+    const phone = restaurant?.phone;
+    if (phone) {
+      const queued = await enqueueSms({ to: phone, body: `${title}: ${body}` });
+      if (!queued) {
+        // Fallback: send inline
+        const sent = await sendSms(phone, `${title}: ${body}`);
+        if (!sent) {
+          logger.warn({ userId }, "SMS send failed (inline fallback)");
         }
       }
     }

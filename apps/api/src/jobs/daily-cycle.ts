@@ -7,6 +7,8 @@ import { optimizeSourcing } from "../ai/supplier-matcher";
 import { getIO } from "../socket/handlers";
 import { cacheInvalidate } from "../lib/redis";
 import { notify } from "../services/notifications";
+import { enqueueCyclePhase } from "../lib/queue";
+import { logger } from "../lib/logger";
 
 function emitCycleUpdate(cycleId: string, status: string) {
   getIO()?.to(`cycle:${cycleId}`).emit("cycle:status", { cycleId, status });
@@ -22,7 +24,7 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       await generateDishSuggestions(cycle.zoneId, cycleId);
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "VOTING" } });
       emitCycleUpdate(cycleId, "VOTING");
-      console.log(`[Cycle ${cycleId}] Voting opened`);
+      logger.info({ cycleId }, "Voting opened");
 
       // Notify zone members that voting is open
       const voteMembers = await prisma.zoneMembership.findMany({
@@ -46,7 +48,7 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       const voteResult = await tallyVotes(cycleId);
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "BIDDING" } });
       emitCycleUpdate(cycleId, "BIDDING");
-      console.log(`[Cycle ${cycleId}] Bidding opened. Winning dish: ${voteResult.winningDishName}`);
+      logger.info({ cycleId, winningDish: voteResult.winningDishName }, "Bidding opened");
       break;
     }
 
@@ -55,18 +57,18 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
       const bidResult = await scoreBidsAndSelectWinner(cycleId);
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "SOURCING" } });
       emitCycleUpdate(cycleId, "SOURCING");
-      console.log(`[Cycle ${cycleId}] Sourcing started. Winning restaurant: ${bidResult.restaurantName}`);
+      logger.info({ cycleId, restaurant: bidResult.restaurantName }, "Sourcing started");
 
       // Generate purchase orders
       await optimizeSourcing(cycleId);
-      console.log(`[Cycle ${cycleId}] Purchase orders created`);
+      logger.info({ cycleId }, "Purchase orders created");
       break;
     }
 
     case CycleStatus.ORDERING: {
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "ORDERING" } });
       emitCycleUpdate(cycleId, "ORDERING");
-      console.log(`[Cycle ${cycleId}] Orders open`);
+      logger.info({ cycleId }, "Orders open");
 
       // Notify zone members that ordering is open
       const orderMembers = await prisma.zoneMembership.findMany({
@@ -88,14 +90,14 @@ export async function triggerCyclePhase(cycleId: string, targetStatus: CycleStat
     case CycleStatus.COMPLETED: {
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "COMPLETED" } });
       emitCycleUpdate(cycleId, "COMPLETED");
-      console.log(`[Cycle ${cycleId}] Cycle completed`);
+      logger.info({ cycleId }, "Cycle completed");
       break;
     }
 
     case CycleStatus.CANCELLED: {
       await prisma.dailyCycle.update({ where: { id: cycleId }, data: { status: "CANCELLED" } });
       emitCycleUpdate(cycleId, "CANCELLED");
-      console.log(`[Cycle ${cycleId}] Cycle cancelled`);
+      logger.info({ cycleId }, "Cycle cancelled");
       break;
     }
   }
@@ -125,33 +127,48 @@ export async function runDailyCycleForAllZones(targetStatus: CycleStatus) {
         cycle = await prisma.dailyCycle.create({
           data: { zoneId: zone.id, date: today, status: "SUGGESTING" },
         });
-        console.log(`[Zone ${zone.name}] New daily cycle created`);
+        logger.info({ zone: zone.name }, "New daily cycle created");
       }
 
       if (cycle) {
         await triggerCyclePhase(cycle.id, targetStatus);
       }
     } catch (err) {
-      console.error(`[Zone ${zone.name}] Error in cycle phase ${targetStatus}:`, err);
+      logger.error({ zone: zone.name, targetStatus, err }, "Error in cycle phase");
     }
   }
 }
 
 export function initCronJobs() {
   // 6:00 AM — Create cycle + AI generates dishes → VOTING
-  cron.schedule("0 6 * * *", () => runDailyCycleForAllZones(CycleStatus.VOTING));
+  cron.schedule("0 6 * * *", async () => {
+    const queued = await enqueueCyclePhase({ targetStatus: CycleStatus.VOTING });
+    if (!queued) runDailyCycleForAllZones(CycleStatus.VOTING);
+  });
 
   // 12:00 PM — Close voting → BIDDING
-  cron.schedule("0 12 * * *", () => runDailyCycleForAllZones(CycleStatus.BIDDING));
+  cron.schedule("0 12 * * *", async () => {
+    const queued = await enqueueCyclePhase({ targetStatus: CycleStatus.BIDDING });
+    if (!queued) runDailyCycleForAllZones(CycleStatus.BIDDING);
+  });
 
   // 2:00 PM — Close bidding → SOURCING
-  cron.schedule("0 14 * * *", () => runDailyCycleForAllZones(CycleStatus.SOURCING));
+  cron.schedule("0 14 * * *", async () => {
+    const queued = await enqueueCyclePhase({ targetStatus: CycleStatus.SOURCING });
+    if (!queued) runDailyCycleForAllZones(CycleStatus.SOURCING);
+  });
 
   // 5:00 PM — Open orders → ORDERING
-  cron.schedule("0 17 * * *", () => runDailyCycleForAllZones(CycleStatus.ORDERING));
+  cron.schedule("0 17 * * *", async () => {
+    const queued = await enqueueCyclePhase({ targetStatus: CycleStatus.ORDERING });
+    if (!queued) runDailyCycleForAllZones(CycleStatus.ORDERING);
+  });
 
   // 9:30 PM — Close cycle → COMPLETED
-  cron.schedule("30 21 * * *", () => runDailyCycleForAllZones(CycleStatus.COMPLETED));
+  cron.schedule("30 21 * * *", async () => {
+    const queued = await enqueueCyclePhase({ targetStatus: CycleStatus.COMPLETED });
+    if (!queued) runDailyCycleForAllZones(CycleStatus.COMPLETED);
+  });
 
-  console.log("Daily cycle cron jobs initialized");
+  logger.info("Daily cycle cron jobs initialized");
 }
