@@ -18,7 +18,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string, role: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role: string, phoneNumber?: string) => Promise<void>;
   logout: () => void;
   setTokenFromOAuth: (token: string) => void;
 }
@@ -81,10 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.data.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name: string, role: string) => {
+  const register = useCallback(async (email: string, password: string, name: string, role: string, phoneNumber?: string) => {
+    const payload: Record<string, string> = { email, password, name, role };
+    if (phoneNumber) payload.phoneNumber = phoneNumber;
     const res = await apiFetch<{ data: { user: AuthUser; token: string } }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name, role }),
+      body: JSON.stringify(payload),
     });
     localStorage.setItem("token", res.data.token);
     setToken(res.data.token);

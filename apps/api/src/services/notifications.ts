@@ -68,7 +68,9 @@ export async function notify({
       if (!queued) {
         // Fallback: send inline
         const emailClient = getResend();
-        if (emailClient) {
+        if (!emailClient) {
+          logger.warn({ userId }, "Email not sent — RESEND_API_KEY not configured");
+        } else {
           try {
             await emailClient.emails.send({
               from: "Dotted <notifications@dotted.app>",
@@ -86,19 +88,23 @@ export async function notify({
 
   // Send SMS via Twilio (queue if available, else inline)
   if (channels.includes("SMS")) {
-    const user = await prisma.user.findUnique({
+    const smsUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, name: true },
+      select: { phoneNumber: true },
     });
 
-    // Use phone from restaurant/supplier profile if available
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { ownerId: userId },
-      select: { phone: true },
-    });
-
-    const phone = restaurant?.phone;
-    if (phone) {
+    // Use phone from user profile, or fall back to restaurant profile
+    let phone = smsUser?.phoneNumber;
+    if (!phone) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { ownerId: userId },
+        select: { phone: true },
+      });
+      phone = restaurant?.phone;
+    }
+    if (!phone) {
+      logger.warn({ userId }, "SMS not sent — no phone number on user or restaurant profile");
+    } else {
       const queued = await enqueueSms({ to: phone, body: `${title}: ${body}` });
       if (!queued) {
         // Fallback: send inline
